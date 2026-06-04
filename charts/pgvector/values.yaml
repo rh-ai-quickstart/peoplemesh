@@ -1,0 +1,29 @@
+applicationName: pgvector
+
+postgres:
+  # Database configuration
+  # These values should be overridden during installation
+  userId: peoplemesh
+  password: changeme
+  databaseName: peoplemesh
+
+  # PostgreSQL image (OpenShift-compatible, runs rootless)
+  image:
+    repository: quay.io/rh-aiservices-bu/postgresql-15-pgvector-c9s
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+  # Storage configuration
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: ""  # Use default storage class if empty

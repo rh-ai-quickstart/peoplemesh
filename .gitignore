@@ -1,0 +1,67 @@
+# Helm
+*.tgz
+charts/*/charts/
+peoplemesh-umbrella/charts/
+Chart.lock
+*.lock
+
+# Custom values with secrets
+*-secrets.yaml
+my-values.yaml
+
+# Kubernetes output
+output.yaml
+rendered-*.yaml
+
+# Backups
+*.sql
+*.backup
+
+# IDE - VSCode
+.vscode/
+*.code-workspace
+
+# IDE - JetBrains
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# IDE - Vim
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*~
+.~*

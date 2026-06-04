@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.applicationName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.applicationName }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: {{ .Values.docling.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.applicationName }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.applicationName }}
+    spec:
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - key: "g5-gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: {{ .Values.applicationName }}
+          image: {{ .Values.docling.image.repository }}:{{ .Values.docling.image.tag }}
+          imagePullPolicy: {{ .Values.docling.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.docling.service.targetPort }}
+              protocol: TCP
+              name: http
+          env:
+            - name: DOCLING_SERVE_ENABLE_UI
+              value: {{ .Values.docling.enableUI | quote }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.docling.service.targetPort }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.docling.service.targetPort }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.docling.resources | nindent 12 }}

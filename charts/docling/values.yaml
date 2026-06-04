@@ -1,0 +1,28 @@
+applicationName: docling
+
+docling:
+  # Docling image configuration
+  image:
+    repository: quay.io/docling-project/docling-serve-cpu
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  # Service configuration
+  service:
+    port: 5001
+    targetPort: 5001
+
+  # Enable the Docling UI at /ui endpoint
+  enableUI: true
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  # Replica configuration
+  replicas: 1

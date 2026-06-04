@@ -1,0 +1,74 @@
+applicationName: keycloak
+
+# Target namespace (where Keycloak operator is installed)
+namespace: samouelian-keycloak
+
+# PostgreSQL database for Keycloak (separate from peoplemesh database)
+postgres:
+  # Database configuration
+  user: keycloak
+  password: changeme-keycloak-db  # CHANGE THIS IN PRODUCTION
+  database: keycloak
+
+  # PostgreSQL image
+  image:
+    repository: postgres
+    tag: "15"
+    pullPolicy: IfNotPresent
+
+  # Service configuration
+  service:
+    name: keycloak-postgres-db
+    port: 5432
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+  # Persistent storage configuration
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""  # Use default storage class if empty
+
+# Keycloak configuration
+keycloak:
+  # Number of Keycloak instances
+  instances: 1
+
+  # HTTP configuration (enable for development)
+  http:
+    enabled: true
+    port: 8080
+    httpsPort: 8443
+
+  # Proxy/Ingress configuration for OpenShift
+  proxy:
+    # Use xforwarded for OpenShift routes
+    headers: xforwarded
+
+  # Disable built-in ingress (we'll use OpenShift Route)
+  ingress:
+    enabled: false
+
+  # Resource limits for Keycloak pods
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1700Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+# Realm configuration
+realm:
+  # Create a peoplemesh realm
+  enabled: true
+  name: peoplemesh
+  displayName: Peoplemesh
+  description: Peoplemesh OIDC authentication realm

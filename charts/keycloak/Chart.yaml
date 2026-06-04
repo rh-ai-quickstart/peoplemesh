@@ -1,0 +1,11 @@
+apiVersion: v2
+name: keycloak
+description: Red Hat build of Keycloak 24.0 with persistent PostgreSQL database
+type: application
+version: 0.1.0
+appVersion: "24.0"
+maintainers:
+  - name: Peter Samouelian
+    email: psamouel@redhat.com
+sources:
+  - https://access.redhat.com/documentation/en-us/red_hat_build_of_keycloak/24.0

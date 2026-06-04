@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.applicationName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.applicationName }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: {{ .Values.peoplemesh.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.applicationName }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.applicationName }}
+    spec:
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - key: "g5-gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: {{ .Values.applicationName }}
+          image: {{ .Values.peoplemesh.image.repository }}:{{ .Values.peoplemesh.image.tag }}
+          imagePullPolicy: {{ .Values.peoplemesh.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.peoplemesh.service.targetPort }}
+              protocol: TCP
+              name: http
+          env:
+            # Database password from existing secret
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.passwordKey }}
+          envFrom:
+            # Load all config from ConfigMap
+            - configMapRef:
+                name: {{ .Values.applicationName }}-config
+            # Load all secrets
+            - secretRef:
+                name: {{ .Values.applicationName }}-secrets
+          livenessProbe:
+            httpGet:
+              path: /q/health/live
+              port: {{ .Values.peoplemesh.service.targetPort }}
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /q/health/ready
+              port: {{ .Values.peoplemesh.service.targetPort }}
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.peoplemesh.resources | nindent 12 }}

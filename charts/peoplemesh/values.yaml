@@ -1,0 +1,104 @@
+applicationName: peoplemesh
+
+# Peoplemesh application configuration
+peoplemesh:
+  # Container image
+  image:
+    repository: frapax/peoplemesh
+    tag: main
+    pullPolicy: IfNotPresent
+
+  # Service configuration
+  service:
+    port: 8080
+    targetPort: 8080
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  # Replica configuration
+  replicas: 1
+
+  # Route/Ingress configuration
+  route:
+    enabled: true
+    host: ""  # If empty, OpenShift will auto-generate
+
+# Database configuration (references pgvector chart)
+database:
+  # These should match the pgvector chart values
+  host: pgvector-service
+  port: 5432
+  name: peoplemesh
+  user: peoplemesh
+  # Use existing secret from pgvector chart
+  existingSecret: pgvector-database
+  passwordKey: DATABASE_PASSWORD
+
+# LLM configuration
+llm:
+  # Deploy mode: "local" uses vllm chart, "external" uses provided endpoint
+  mode: local  # Options: local, external
+
+  # Local LLM (when mode=local, references vllm chart)
+  local:
+    serviceName: peoplemesh-llm-predictor
+    modelName: peoplemesh-llm
+
+  # External LLM (when mode=external)
+  external:
+    baseUrl: ""  # e.g., https://api.openai.com/v1
+    apiKey: ""
+    chatModel: gpt-4o-mini
+    embeddingModel: text-embedding-3-small
+    embeddingDimension: 384
+
+# Docling configuration (references docling chart)
+docling:
+  serviceName: docling-service
+  port: 5001
+  enabled: true
+
+# CV Import configuration
+cvImport:
+  provider: docling  # Options: docling, openai
+  maxFileSize: 5242880  # 5MB
+
+# Security configuration
+security:
+  # Session secrets (auto-generated if not provided)
+  sessionSecret: ""
+  oauthStateSecret: ""
+  maintenanceApiKey: ""
+
+  # CORS origins (comma-separated list)
+  corsOrigins: "*"  # Change to specific origins in production
+
+  # OIDC providers (AT LEAST ONE IS REQUIRED)
+  oidc:
+    google:
+      clientId: ""  # REQUIRED if not using Microsoft
+      clientSecret: ""
+    microsoft:
+      clientId: ""  # REQUIRED if not using Google
+      clientSecret: ""
+
+# Organization configuration
+organization:
+  name: "My Organization"
+  contactEmail: "contact@example.com"
+  dpoEmail: "dpo@example.com"
+  dataLocation: "US"
+  governingLaw: "US Law"
+
+# Feature flags
+features:
+  clusteringEnabled: true
+  frontendEnabled: true
+  maintenanceAllowedCidrs: ""

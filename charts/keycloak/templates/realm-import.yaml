@@ -1,0 +1,36 @@
+{{- if .Values.realm.enabled }}
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakRealmImport
+metadata:
+  name: {{ .Values.realm.name }}-realm
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.applicationName }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: Helm
+spec:
+  keycloakCRName: {{ .Values.applicationName }}
+  realm:
+    id: {{ .Values.realm.name }}
+    realm: {{ .Values.realm.name }}
+    displayName: {{ .Values.realm.displayName }}
+    enabled: true
+    {{- if .Values.realm.description }}
+    displayNameHtml: "<div class='kc-logo-text'><span>{{ .Values.realm.displayName }}</span></div>"
+    {{- end }}
+    # Basic realm settings
+    registrationAllowed: false
+    registrationEmailAsUsername: true
+    rememberMe: true
+    verifyEmail: false
+    loginWithEmailAllowed: true
+    duplicateEmailsAllowed: false
+    resetPasswordAllowed: true
+    editUsernameAllowed: false
+    bruteForceProtected: true
+    # SSO session settings
+    ssoSessionIdleTimeout: 1800
+    ssoSessionMaxLifespan: 36000
+    # Token settings
+    accessTokenLifespan: 300
+{{- end }}

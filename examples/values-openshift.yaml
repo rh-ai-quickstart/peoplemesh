@@ -1,0 +1,167 @@
+# Example OpenShift deployment configuration for Peoplemesh
+# Copy and customize this file for your deployment
+
+# PostgreSQL with pgvector
+pgvector:
+  enabled: true
+  applicationName: pgvector
+  postgres:
+    userId: peoplemesh
+    password: "MySecurePassword123!"  # CHANGE THIS
+    databaseName: peoplemesh
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    persistence:
+      enabled: true
+      size: 50Gi  # Adjust based on expected data volume
+
+# Docling document processing
+docling:
+  enabled: true
+  docling:
+    enableUI: true
+    replicas: 2  # Scale for production
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+
+# vLLM local inference (requires GPU)
+# Set enabled: false to use external LLM
+vllm:
+  enabled: true
+  model:
+    name: peoplemesh-llm
+    displayName: "Peoplemesh LLM - Qwen2.5-7B"
+    storage:
+      type: uri
+      # Using quantized model for efficiency
+      uri: "hf://Qwen/Qwen2.5-7B-Instruct-AWQ"
+      # Alternative: use S3 or PVC
+      # type: s3
+      # s3Bucket: "s3://my-bucket/models/qwen2.5-7b"
+    runtime:
+      name: peoplemesh-vllm-runtime
+      args:
+        - --quantization
+        - awq
+        - --max-model-len=8192
+        - --enforce_eager
+        - --gpu-memory-utilization
+        - "0.90"
+        - --max-num-seqs
+        - "4"
+        - --task=generate
+        - --trust_remote_code
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+        cpu: "4"
+        memory: "16Gi"
+      requests:
+        nvidia.com/gpu: 1
+        cpu: "2"
+        memory: "12Gi"
+    scaling:
+      minReplicas: 1
+      maxReplicas: 3  # Auto-scale based on load
+  route:
+    enabled: true
+    timeout: "600s"
+  security:
+    enableAuth: false  # Enable for production
+
+# Peoplemesh application
+peoplemesh:
+  applicationName: peoplemesh
+  peoplemesh:
+    image:
+      repository: frapax/peoplemesh
+      tag: latest
+      pullPolicy: Always  # Use IfNotPresent in production
+    route:
+      enabled: true
+      host: "peoplemesh.apps.your-cluster.com"  # Set your domain
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+    replicas: 2  # Scale for production
+
+  # Database configuration
+  database:
+    host: pgvector-service
+    port: 5432
+    name: peoplemesh
+    user: peoplemesh
+    existingSecret: pgvector-database
+    passwordKey: DATABASE_PASSWORD
+
+  # LLM configuration
+  llm:
+    mode: local  # Use local vLLM deployment
+    local:
+      serviceName: peoplemesh-llm-predictor
+      modelName: peoplemesh-llm
+
+    # Alternative: External LLM configuration
+    # Uncomment to use external LLM (and set vllm.enabled=false)
+    # mode: external
+    # external:
+    #   baseUrl: "https://api.openai.com/v1"
+    #   apiKey: "sk-your-api-key-here"
+    #   chatModel: "gpt-4o-mini"
+    #   embeddingModel: "text-embedding-3-small"
+    #   embeddingDimension: 384
+
+  # Docling configuration
+  docling:
+    serviceName: docling-service
+    port: 5001
+    enabled: true
+
+  # CV Import configuration
+  cvImport:
+    provider: local  # Uses Docling
+    maxFileSize: 10485760  # 10MB
+
+  # Organization configuration
+  organization:
+    name: "Acme Corporation"
+    contactEmail: "peoplemesh@acme.com"
+    dpoEmail: "privacy@acme.com"
+    dataLocation: "United States"
+    governingLaw: "California Law"
+
+  # Feature flags
+  features:
+    clusteringEnabled: true
+    frontendEnabled: true
+    maintenanceAllowedCidrs: "10.0.0.0/8,172.16.0.0/12"  # Internal networks only
+
+  # Security configuration
+  security:
+    # Leave empty for auto-generation, or provide your own
+    sessionSecret: ""
+    oauthStateSecret: ""
+    maintenanceApiKey: ""
+
+    # OIDC providers (optional)
+    # Uncomment and configure for SSO
+    # google:
+    #   clientId: "your-google-client-id"
+    #   clientSecret: "your-google-client-secret"
+    # microsoft:
+    #   clientId: "your-microsoft-client-id"
+    #   clientSecret: "your-microsoft-client-secret"

@@ -1,0 +1,62 @@
+# Model deployment configuration
+model:
+  name: peoplemesh-llm
+  displayName: "Peoplemesh LLM"
+
+  # Model storage configuration
+  storage:
+    # Options: pvc, s3, uri (oci container image, hf, http/https)
+    type: uri
+    # Using Qwen2.5-7B-Instruct AWQ (quantized for efficiency)
+    # AWQ: ~4GB VRAM, good quality for semantic search and embeddings
+    uri: "hf://Qwen/Qwen2.5-7B-Instruct-AWQ"
+    # Alternative: use S3 bucket
+    s3Bucket: ""
+    # Alternative: use PVC
+    pvcName: ""
+
+  # Runtime configuration
+  runtime:
+    name: peoplemesh-vllm-runtime
+    # vLLM arguments for model serving
+    args:
+      - --quantization
+      - awq
+      - --max-model-len=8192
+      - --enforce_eager
+      - --gpu-memory-utilization
+      - "0.90"
+      - --max-num-seqs
+      - "4"
+      - --task=generate
+      - --trust_remote_code
+
+  # Resource limits (optimized for A10G 24GB GPU)
+  # AWQ 4-bit quantization reduces VRAM requirements
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+      cpu: "2"
+      memory: "12Gi"
+    requests:
+      nvidia.com/gpu: 1
+      cpu: "1"
+      memory: "8Gi"
+
+  # Scaling configuration
+  scaling:
+    minReplicas: 1
+    maxReplicas: 1
+
+# Route configuration
+route:
+  enabled: true
+  # Timeout for long-running inference requests (10 minutes)
+  timeout: "600s"
+  # oauth-proxy upstream timeout (10 minutes)
+  oauthProxyUpstreamTimeout: "10m"
+
+# Security configuration
+security:
+  # Enable OAuth authentication via oauth-proxy
+  enableAuth: false

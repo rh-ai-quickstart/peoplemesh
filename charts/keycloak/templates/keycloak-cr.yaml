@@ -1,0 +1,46 @@
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: Keycloak
+metadata:
+  name: {{ .Values.applicationName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.applicationName }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: Helm
+spec:
+  instances: {{ .Values.keycloak.instances }}
+
+  # Database configuration
+  db:
+    vendor: postgres
+    host: {{ .Values.postgres.service.name }}
+    usernameSecret:
+      name: {{ .Values.applicationName }}-db-secret
+      key: username
+    passwordSecret:
+      name: {{ .Values.applicationName }}-db-secret
+      key: password
+
+  # HTTP configuration
+  http:
+    httpEnabled: {{ .Values.keycloak.http.enabled }}
+
+  # Hostname configuration
+  # Leave empty to let OpenShift auto-generate
+  hostname:
+    strict: false
+    strictBackchannel: false
+
+  # Proxy configuration (important for OpenShift routes)
+  proxy:
+    headers: {{ .Values.keycloak.proxy.headers }}
+
+  # Ingress configuration
+  ingress:
+    enabled: {{ .Values.keycloak.ingress.enabled }}
+
+  # Resource configuration
+  {{- if .Values.keycloak.resources }}
+  resources:
+    {{- toYaml .Values.keycloak.resources | nindent 4 }}
+  {{- end }}

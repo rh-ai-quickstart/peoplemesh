@@ -1,0 +1,11 @@
+apiVersion: v2
+name: peoplemesh
+description: Peoplemesh - semantic search for people within organizations
+type: application
+version: 0.1.0
+appVersion: "latest"
+maintainers:
+  - name: Peter Samouelian
+    email: psamouel@redhat.com
+sources:
+  - https://github.com/francescopace/peoplemesh

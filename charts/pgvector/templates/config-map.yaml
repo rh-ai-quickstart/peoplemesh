@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.applicationName }}-init-script
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.applicationName }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: Helm
+data:
+  init.sh: |
+    #!/bin/bash
+    set -e
+
+    # Wait for PostgreSQL to be ready
+    until pg_isready -U "$POSTGRESQL_USER" -d "$POSTGRESQL_DATABASE"; do
+      echo "Waiting for PostgreSQL to be ready..."
+      sleep 2
+    done
+
+    echo "PostgreSQL is ready. Enabling pgvector extension..."
+
+    # Enable pgvector extension using admin privileges
+    # The postgres user has superuser privileges needed to create extensions
+    PGPASSWORD="$POSTGRESQL_ADMIN_PASSWORD" psql -v ON_ERROR_STOP=1 --username postgres --dbname "$POSTGRESQL_DATABASE" <<-EOSQL
+      CREATE EXTENSION IF NOT EXISTS vector;
+      SELECT extname, extversion FROM pg_extension WHERE extname = 'vector';
+    EOSQL
+
+    echo "pgvector extension enabled successfully."

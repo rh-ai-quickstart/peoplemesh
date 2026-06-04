@@ -1,0 +1,11 @@
+apiVersion: v2
+name: docling
+description: Docling document parsing service for CV/PDF import
+type: application
+version: 0.1.0
+appVersion: "latest"
+maintainers:
+  - name: Peter Samouelian
+    email: psamouel@redhat.com
+sources:
+  - https://github.com/docling-project/docling-serve

@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.applicationName }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.applicationName }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: Helm
+data:
+  # Database configuration
+  DB_URL: "jdbc:postgresql://{{ .Values.database.host }}:{{ .Values.database.port }}/{{ .Values.database.name }}"
+  DB_USER: {{ .Values.database.user | quote }}
+  DB_POOL_MIN_SIZE: "4"
+  DB_POOL_MAX_SIZE: "24"
+  DB_POOL_ACQUIRE_TIMEOUT: "30s"
+  HIBERNATE_BATCH_SIZE: "32"
+  HIBERNATE_FETCH_SIZE: "100"
+
+  # LLM configuration (local mode)
+  {{- if eq .Values.llm.mode "local" }}
+  OPENAI_BASE_URL: "http://{{ .Values.llm.local.serviceName }}.{{ .Release.Namespace }}.svc.cluster.local/v1"
+  LLM_MODEL: {{ .Values.llm.local.modelName | quote }}
+  EMBEDDING_MODEL: {{ .Values.llm.local.modelName | quote }}
+  EMBEDDING_DIMENSION: "768"
+  {{- end }}
+
+  # Docling configuration
+  {{- if .Values.docling.enabled }}
+  DOCLING_BASE_URL: "http://{{ .Values.docling.serviceName }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.docling.port }}"
+  {{- end }}
+
+  # CV Import configuration
+  CV_IMPORT_PROVIDER: {{ .Values.cvImport.provider | quote }}
+
+  # CORS configuration
+  CORS_ORIGINS: {{ .Values.security.corsOrigins | quote }}
+
+  # Organization configuration
+  ORGANIZATION_NAME: {{ .Values.organization.name | quote }}
+  ORGANIZATION_CONTACT_EMAIL: {{ .Values.organization.contactEmail | quote }}
+  ORGANIZATION_DPO_EMAIL: {{ .Values.organization.dpoEmail | quote }}
+  ORGANIZATION_DATA_LOCATION: {{ .Values.organization.dataLocation | quote }}
+  ORGANIZATION_GOVERNING_LAW: {{ .Values.organization.governingLaw | quote }}
+
+  # Feature flags
+  CLUSTERING_ENABLED: {{ .Values.features.clusteringEnabled | quote }}
+  PEOPLEMESH_FRONTEND_ENABLED: {{ .Values.features.frontendEnabled | quote }}
+  {{- if .Values.features.maintenanceAllowedCidrs }}
+  MAINTENANCE_ALLOWED_CIDRS: {{ .Values.features.maintenanceAllowedCidrs | quote }}
+  {{- end }}

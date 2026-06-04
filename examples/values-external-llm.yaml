@@ -1,0 +1,53 @@
+# Example configuration using external LLM service
+# Use this when you don't want to deploy vLLM on the cluster
+
+# PostgreSQL with pgvector
+pgvector:
+  enabled: true
+  postgres:
+    userId: peoplemesh
+    password: "MySecurePassword123!"  # CHANGE THIS
+    databaseName: peoplemesh
+
+# Docling document processing
+docling:
+  enabled: true
+
+# Disable local vLLM deployment
+vllm:
+  enabled: false
+
+# Peoplemesh application
+peoplemesh:
+  peoplemesh:
+    route:
+      enabled: true
+
+  # LLM configuration - using external service
+  llm:
+    mode: external
+    external:
+      # Option 1: OpenAI
+      baseUrl: "https://api.openai.com/v1"
+      apiKey: "sk-your-openai-api-key"
+      chatModel: "gpt-4o-mini"
+      embeddingModel: "text-embedding-3-small"
+      embeddingDimension: 1536
+
+      # Option 2: External vLLM endpoint
+      # baseUrl: "https://vllm.example.com/v1"
+      # apiKey: "your-vllm-api-key"
+      # chatModel: "Qwen/Qwen2.5-7B-Instruct"
+      # embeddingModel: "Qwen/Qwen2.5-7B-Instruct"
+      # embeddingDimension: 768
+
+      # Option 3: Ollama (local development)
+      # baseUrl: "http://ollama.local:11434/v1"
+      # apiKey: "not-required"
+      # chatModel: "qwen2.5:7b"
+      # embeddingModel: "qwen2.5:7b"
+      # embeddingDimension: 768
+
+  organization:
+    name: "My Organization"
+    contactEmail: "contact@example.com"
