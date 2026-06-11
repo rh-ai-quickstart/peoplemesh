@@ -41,7 +41,43 @@ The platform enables organizations to find hidden talent, build diverse teams, i
 
 ### Architecture
 
-![Architecture Diagram](docs/images/architecture.png)
+```mermaid
+graph TB
+    subgraph "OpenShift Namespace: peoplemesh-quickstart"
+        subgraph "Frontend & API"
+            UI[Peoplemesh UI<br/>React SPA]
+            API[Peoplemesh API<br/>Quarkus REST]
+        end
+        
+        subgraph "Authentication"
+            KC[Keycloak Server<br/>OIDC Provider]
+            KCDB[(Keycloak DB<br/>PostgreSQL)]
+        end
+        
+        subgraph "AI Services"
+            LLM[Ollama<br/>Granite 3B]
+            DOC[Docling<br/>Document Parser]
+        end
+        
+        subgraph "Data Layer"
+            PGVEC[(PgVector DB<br/>PostgreSQL + pgvector)]
+        end
+        
+        USER[User] -->|HTTPS| ROUTE[OpenShift Route]
+        ROUTE -->|TLS| UI
+        UI -->|API Calls| API
+        
+        API -->|OIDC Auth| KC
+        KC -->|User Data| KCDB
+        
+        API -->|Query Parsing<br/>CV Structuring| LLM
+        API -->|Resume Parsing| DOC
+        API -->|Vector Search<br/>Profile Storage| PGVEC
+        
+        LLM -.->|Optional| GPU1[NVIDIA GPU<br/>A10G 23GB]
+        DOC -.->|Optional| GPU2[NVIDIA GPU<br/>A10G 23GB]
+    end
+```
 
 **Components:**
 - **Peoplemesh Application**: React frontend + Quarkus backend serving the search interface and REST API
