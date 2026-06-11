@@ -1,0 +1,142 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.applicationName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.applicationName }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: Helm
+spec:
+  serviceName: {{ .Values.service.name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.applicationName }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.applicationName }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- if .Values.nodeAffinity }}
+      affinity:
+        nodeAffinity:
+          {{- toYaml .Values.nodeAffinity | nindent 10 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: pull-models
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          env:
+            # Set Ollama directories to writable mounted volume (OpenShift runs as non-root)
+            - name: OLLAMA_MODELS
+              value: /var/lib/ollama/models
+            - name: HOME
+              value: /var/lib/ollama
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Starting Ollama in background..."
+              /bin/ollama serve &
+              OLLAMA_PID=$!
+
+              echo "Waiting for Ollama to be ready..."
+              until ollama list >/dev/null 2>&1; do
+                echo "Waiting for Ollama API..."
+                sleep 2
+              done
+              echo "Ollama is ready!"
+
+              {{- range .Values.models }}
+              echo "Checking/pulling model: {{ . }}"
+              if ollama list | grep -q "{{ . }}"; then
+                echo "Model {{ . }} already exists, skipping pull"
+              else
+                echo "Pulling model: {{ . }}"
+                ollama pull {{ . }}
+                echo "Model {{ . }} pulled successfully"
+              fi
+              {{- end }}
+
+              echo "All models ready!"
+              kill $OLLAMA_PID
+              wait $OLLAMA_PID || true
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /var/lib/ollama
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+              {{- if .Values.gpu.enabled }}
+              nvidia.com/gpu: "1"
+              {{- end }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+              {{- if .Values.gpu.enabled }}
+              nvidia.com/gpu: "1"
+              {{- end }}
+      containers:
+        - name: ollama
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            # Set Ollama directories to writable mounted volume (OpenShift runs as non-root)
+            - name: OLLAMA_MODELS
+              value: /var/lib/ollama/models
+            - name: HOME
+              value: /var/lib/ollama
+          command:
+            - /bin/ollama
+            - serve
+          ports:
+            - name: http
+              containerPort: 11434
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /var/lib/ollama
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+              {{- if .Values.gpu.enabled }}
+              nvidia.com/gpu: "1"
+              {{- end }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+              {{- if .Values.gpu.enabled }}
+              nvidia.com/gpu: "1"
+              {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: ollama-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ .Values.persistence.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}

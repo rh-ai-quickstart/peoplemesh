@@ -1,9 +1,100 @@
 # Peoplemesh Umbrella Chart - Complete Deployment Configuration
-# This umbrella chart orchestrates all components needed for peoplemesh
+# Single command deployment with Keycloak authentication
+#
+# All components deploy to the same namespace for simplified management
+# Keycloak client secret is auto-generated and shared between components
+# Cluster domain auto-detected from OpenShift console route
+# No manual configuration steps required - deploy and login!
 
-# Global configuration that can be referenced by subcharts
-global:
-  namespace: peoplemesh
+# Keycloak authentication server
+keycloak:
+  enabled: true
+  applicationName: keycloak
+
+  # Namespace will be set to release namespace automatically
+  namespace: ""  # Leave empty to use release namespace
+
+  # PostgreSQL database for Keycloak
+  postgres:
+    user: keycloak
+    # Database password - REQUIRED
+    # Use alphanumeric characters only to avoid JDBC escaping issues
+    # Example: --set keycloak.postgres.password=YourSecurePassword123
+    password: ""  # REQUIRED - no default value
+    database: keycloak
+    image:
+      repository: postgres
+      tag: "15"
+      pullPolicy: IfNotPresent
+    service:
+      name: keycloak-postgres-db
+      port: 5432
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+
+  # Keycloak server configuration
+  keycloak:
+    instances: 1
+    http:
+      enabled: true
+      port: 8080
+      httpsPort: 8443
+    proxy:
+      headers: xforwarded
+    ingress:
+      enabled: false
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1700Mi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+
+  # Peoplemesh realm configuration
+  realm:
+    enabled: true
+    name: peoplemesh
+    displayName: Peoplemesh
+    description: Peoplemesh OIDC authentication realm
+
+    # OIDC client for peoplemesh application
+    # Automatically configured with correct redirect URIs
+    client:
+      enabled: true
+      clientId: peoplemesh
+      # Client secret - REQUIRED
+      # This secret is shared between Keycloak and Peoplemesh for OIDC authentication
+      # Example: --set keycloak.realm.client.clientSecret=YourClientSecret123
+      clientSecret: ""  # REQUIRED - no default value
+      name: "Peoplemesh Application"
+      description: "Peoplemesh OIDC client"
+      # Redirect URIs - wildcards will work for any cluster
+      redirectUris:
+        - "https://peoplemesh-*.apps.*/api/v1/auth/callback/keycloak"
+        - "http://localhost:8080/api/v1/auth/callback/keycloak"
+      webOrigins:
+        - "https://peoplemesh-*.apps.*"
+        - "http://localhost:8080"
+
+    # Test user for immediate login after deployment
+    testUser:
+      enabled: true
+      username: testuser
+      email: testuser@example.com
+      firstName: Test
+      lastName: User
+      password: ""  # REQUIRED - no default value
+      emailVerified: true
 
 # PostgreSQL with pgvector extension
 pgvector:
@@ -11,7 +102,10 @@ pgvector:
   applicationName: pgvector
   postgres:
     userId: peoplemesh
-    password: changeme-secure-password  # CHANGE THIS IN PRODUCTION
+    # Database password - REQUIRED
+    # Use alphanumeric characters only to avoid JDBC escaping issues
+    # Example: --set pgvector.postgres.password=YourDbPassword123
+    password: ""  # REQUIRED - no default value
     databaseName: peoplemesh
     resources:
       requests:
@@ -27,6 +121,10 @@ pgvector:
 # Docling document processing service
 docling:
   enabled: true
+  # GPU acceleration - set to true to require GPU for faster document processing
+  # Default: false (CPU-only) for maximum compatibility
+  gpu:
+    enabled: false
   applicationName: docling
   docling:
     enableUI: true
@@ -37,11 +135,18 @@ docling:
       limits:
         cpu: 2000m
         memory: 4Gi
+    tolerations:
+      - key: g5-gpu
+        operator: Exists
+        effect: NoSchedule
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
 
-# vLLM inference server (local LLM deployment)
-# Set enabled: false to use external LLM instead
+# vLLM inference server (local LLM deployment with GPU)
+# Set enabled: false to use Ollama or external LLM instead
 vllm:
-  enabled: true  # Set to false for external LLM
+  enabled: false  # Disabled by default - use Ollama instead
   model:
     name: peoplemesh-llm
     displayName: "Peoplemesh LLM"
@@ -60,18 +165,52 @@ vllm:
         cpu: "1"
         memory: "8Gi"
   security:
-    enableAuth: false
+    enableAuth: true  # Enable OAuth authentication for vLLM endpoint
+
+# Ollama local LLM server (CPU-based, easier setup)
+# Provides both chat and embedding models with single endpoint
+ollama:
+  enabled: true  # Set to false to use vLLM or external LLM
+  # GPU acceleration - set to true to require GPU (10-20x faster inference)
+  # IMPORTANT: Requires GPU-enabled cluster nodes. Pod will not schedule without GPU if enabled.
+  # Default: false (CPU-only) for maximum compatibility
+  gpu:
+    enabled: false
+  models:
+    # Chat model for text generation
+    - granite4:3b
+    # Embedding model for vector search
+    - granite-embedding:30m
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 8Gi
+  persistence:
+    enabled: true
+    size: 50Gi
+  # Tolerations for GPU nodes - pre-configured for common GPU taints
+  tolerations:
+    - key: g5-gpu
+      operator: Exists
+      effect: NoSchedule
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
 
 # Peoplemesh application
 peoplemesh:
   applicationName: peoplemesh
   peoplemesh:
     image:
-      repository: frapax/peoplemesh
-      tag: main
+      repository: quay.io/rh-ai-quickstart/peoplemesh
+      tag: latest
+      pullPolicy: Always
     route:
       enabled: true
-      host: ""  # Auto-generated by OpenShift if empty
+      host: ""  # Auto-generated by OpenShift
     resources:
       requests:
         cpu: 500m
@@ -91,22 +230,29 @@ peoplemesh:
 
   # LLM configuration
   llm:
-    # Mode: "local" uses vllm chart, "external" uses provided endpoint
-    mode: local  # Change to "external" to use external LLM
+    # Mode: "ollama" (default), "vllm", or "external"
+    mode: ollama
 
-    # Local LLM configuration (when mode=local)
-    local:
+    # Ollama configuration (when mode=ollama)
+    ollama:
+      serviceName: ollama-service
+      port: 11434
+      chatModel: granite4:3b
+      embeddingModel: granite-embedding:30m
+      embeddingDimension: 384  # granite-embedding:30m uses 384D
+
+    # vLLM configuration (when mode=vllm)
+    vllm:
       serviceName: peoplemesh-llm-predictor
       modelName: peoplemesh-llm
 
     # External LLM configuration (when mode=external)
-    # Uncomment and configure if using external LLM
     # external:
     #   baseUrl: "https://api.openai.com/v1"
     #   apiKey: "sk-..."
     #   chatModel: "gpt-4o-mini"
     #   embeddingModel: "text-embedding-3-small"
-    #   embeddingDimension: 384
+    #   embeddingDimension: 1536
 
   # Docling configuration
   docling:
@@ -116,7 +262,7 @@ peoplemesh:
 
   # CV Import configuration
   cvImport:
-    provider: docling  # Uses Docling for CV parsing
+    provider: docling
     maxFileSize: 5242880
 
   # Organization configuration
@@ -133,19 +279,27 @@ peoplemesh:
     frontendEnabled: true
 
   # Security configuration
-  # NOTE: Secrets are auto-generated if not provided
   security:
-    sessionSecret: ""  # Auto-generated
-    oauthStateSecret: ""  # Auto-generated
-    maintenanceApiKey: ""  # Auto-generated
+    # Session and auth secrets - ALL REQUIRED
+    # sessionSecret: Used to encrypt browser session cookies (min 32 characters)
+    # oauthStateSecret: Used for OAuth CSRF protection (min 32 characters)
+    # maintenanceApiKey: API key for maintenance endpoints (min 32 characters)
+    # Example: --set peoplemesh.security.sessionSecret=YourSessionSecret123456789012
+    sessionSecret: ""  # REQUIRED - no default value
+    oauthStateSecret: ""  # REQUIRED - no default value
+    maintenanceApiKey: ""  # REQUIRED - no default value
     corsOrigins: "*"  # Change to specific origins in production
 
-    # OIDC providers - AT LEAST ONE IS REQUIRED
-    # Uncomment and configure at least one provider:
+    # OIDC configuration - auto-configured from Keycloak
     oidc:
+      keycloak:
+        clientId: "peoplemesh"
+        # Client secret and issuer URL auto-configured from umbrella
+        clientSecret: ""  # Populated automatically
+        issuerUrl: ""  # Populated automatically
       google:
-        clientId: ""  # REQUIRED if not using Microsoft
-        clientSecret: ""
+        clientId: "none"
+        clientSecret: "none"
       microsoft:
-        clientId: ""  # REQUIRED if not using Google
-        clientSecret: ""
+        clientId: "none"
+        clientSecret: "none"

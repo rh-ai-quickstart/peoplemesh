@@ -3,7 +3,7 @@ apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakRealmImport
 metadata:
   name: {{ .Values.realm.name }}-realm
-  namespace: {{ .Values.namespace }}
+  namespace: {{ include "keycloak.namespace" . }}
   labels:
     app.kubernetes.io/name: {{ .Values.applicationName }}
     app.kubernetes.io/instance: {{ .Release.Name }}
@@ -33,4 +33,61 @@ spec:
     ssoSessionMaxLifespan: 36000
     # Token settings
     accessTokenLifespan: 300
+    {{- if .Values.realm.client.enabled }}
+    # OIDC Clients
+    clients:
+      - clientId: {{ .Values.realm.client.clientId | quote }}
+        name: {{ .Values.realm.client.name | quote }}
+        description: {{ .Values.realm.client.description | quote }}
+        enabled: true
+        clientAuthenticatorType: client-secret
+        secret: {{ include "keycloak.clientSecret" . | quote }}
+        publicClient: false
+        bearerOnly: false
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        protocol: openid-connect
+        redirectUris:
+        {{- range .Values.realm.client.redirectUris }}
+          - {{ . | quote }}
+        {{- end }}
+          - {{ include "keycloak.peoplemeshRedirectUri" . | quote }}
+        webOrigins:
+        {{- range .Values.realm.client.webOrigins }}
+          - {{ . | quote }}
+        {{- end }}
+          - {{ include "keycloak.peoplemeshWebOrigin" . | quote }}
+        attributes:
+          # TODO: Enable PKCE (S256) once peoplemesh implements PKCE support
+          # PKCE is a security best practice for SPAs but requires code_verifier/code_challenge
+          # For now, PKCE is disabled to allow standard OAuth 2.0 authorization code flow
+          oauth2.pkce.code.challenge.method: ""
+        defaultClientScopes:
+          - web-origins
+          - acr
+          - profile
+          - roles
+          - email
+        optionalClientScopes:
+          - address
+          - phone
+          - offline_access
+          - microprofile-jwt
+    {{- end }}
+    # Test users for quickstart
+    users:
+    {{- if .Values.realm.testUser.enabled }}
+      - username: {{ .Values.realm.testUser.username | quote }}
+        email: {{ .Values.realm.testUser.email | quote }}
+        firstName: {{ .Values.realm.testUser.firstName | quote }}
+        lastName: {{ .Values.realm.testUser.lastName | quote }}
+        enabled: true
+        emailVerified: {{ .Values.realm.testUser.emailVerified }}
+        credentials:
+          - type: password
+            value: {{ .Values.realm.testUser.password | quote }}
+            temporary: false
+    {{- end }}
 {{- end }}

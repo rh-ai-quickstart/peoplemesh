@@ -8,6 +8,9 @@ metadata:
     app.kubernetes.io/name: {{ .Values.applicationName }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: Helm
+  annotations:
+    # Increase timeout to handle slow LLM requests (CV import on CPU can take 3-4 minutes)
+    haproxy.router.openshift.io/timeout: 300s
 spec:
   {{- if .Values.peoplemesh.route.host }}
   host: {{ .Values.peoplemesh.route.host }}

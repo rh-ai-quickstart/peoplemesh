@@ -1,0 +1,49 @@
+applicationName: ollama
+
+# GPU acceleration - set to true to require GPU (10-20x faster inference)
+# Default: false (CPU-only) for maximum compatibility
+gpu:
+  enabled: false
+
+# Models to pre-pull on deployment
+models:
+  - granite4:3b
+  - granite-embedding:30m
+
+image:
+  repository: ollama/ollama
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  name: ollama-service
+  port: 11434
+  type: ClusterIP
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+    # GPU resources are conditionally added based on gpu.enabled flag
+  limits:
+    cpu: "4"
+    memory: 8Gi
+    # GPU resources are conditionally added based on gpu.enabled flag
+
+persistence:
+  enabled: true
+  size: 50Gi
+  storageClass: ""  # Use default storage class
+
+# Node affinity - optional, use for advanced GPU scheduling
+nodeAffinity: {}
+
+# Tolerations for GPU nodes - always present, allows scheduling on GPU nodes
+# These are harmless when gpu.enabled=false (pod won't request GPU anyway)
+tolerations:
+  - key: g5-gpu
+    operator: Exists
+    effect: NoSchedule
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule

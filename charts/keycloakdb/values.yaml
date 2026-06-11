@@ -1,7 +1,0 @@
-applicationName: pgvector
-
-postgres:
-  userId: <postgres user id> # provide this when calling make (e.g., make install postgres.userId=postgres)
-  password: <postgres password> # provide this when calling make (e.g., make install postgres.password=secret123)
-  databaseName: <postgres database name> # provide this when calling make (e.g., make install postgres.databaseName=ecommerce)
-  readonlyPassword: <readonly user password> # REQUIRED: provide this when calling make (e.g., make install postgres.readonlyPassword=readonly123)

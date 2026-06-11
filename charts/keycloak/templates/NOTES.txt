@@ -1,0 +1,64 @@
+========================================
+Keycloak Successfully Deployed!
+========================================
+
+Release: {{ .Release.Name }}
+Namespace: {{ include "keycloak.namespace" . }}
+
+{{- $targetNamespace := include "keycloak.namespace" . }}
+
+Keycloak Admin Console:
+{{- $route := lookup "route.openshift.io/v1" "Route" $targetNamespace .Values.applicationName }}
+{{- if $route }}
+  URL: https://{{ $route.spec.host }}/admin
+{{- else }}
+  URL: Run this command to get the URL:
+       echo "https://$(oc get route {{ .Values.applicationName }} -n {{ $targetNamespace }} -o jsonpath='{.spec.host}')/admin"
+{{- end }}
+
+Admin Credentials:
+{{- $adminSecret := lookup "v1" "Secret" $targetNamespace (printf "%s-initial-admin" .Values.applicationName) }}
+{{- if $adminSecret }}
+  Username: {{ index $adminSecret.data "username" | b64dec }}
+  Password: {{ index $adminSecret.data "password" | b64dec }}
+{{- else }}
+  Run these commands to get credentials:
+    oc get secret {{ .Values.applicationName }}-initial-admin -n {{ $targetNamespace }} -o jsonpath='{.data.username}' | base64 -d
+    oc get secret {{ .Values.applicationName }}-initial-admin -n {{ $targetNamespace }} -o jsonpath='{.data.password}' | base64 -d
+{{- end }}
+
+{{- if .Values.realm.enabled }}
+
+Peoplemesh Realm:
+  Name: {{ .Values.realm.name }}
+  Display Name: {{ .Values.realm.displayName }}
+
+{{- if .Values.realm.client.enabled }}
+
+OIDC Client Configuration:
+  Client ID: {{ .Values.realm.client.clientId }}
+  Client Secret: Auto-generated and shared with peoplemesh
+  Redirect URIs: Auto-configured
+{{- end }}
+
+{{- if .Values.realm.testUser.enabled }}
+
+Test User Created:
+  Username: {{ .Values.realm.testUser.username }}
+  Email: {{ .Values.realm.testUser.email }}
+  Password: {{ .Values.realm.testUser.password }}
+
+To login with the test user:
+  1. Navigate to your peoplemesh application
+  2. Click "Sign in"
+  3. Choose "Continue with Keycloak"
+  4. Login with the credentials above
+{{- end }}
+{{- end }}
+
+Deployment Status:
+  Run: oc get pods -n {{ $targetNamespace }}
+  Wait for all pods to be Running and Ready
+
+For more information:
+  https://github.com/rh-ai-quickstart/peoplemesh

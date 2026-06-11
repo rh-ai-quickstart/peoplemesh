@@ -1,235 +1,335 @@
-# Peoplemesh Quickstart for OpenShift
+# Deploy an AI-Powered Talent Discovery Platform
 
-This repository provides Helm charts for deploying [Peoplemesh](https://github.com/francescopace/peoplemesh) to an OpenShift cluster. Peoplemesh is a semantic search platform for finding people, skills, and expertise within organizations.
+Connect people with opportunities using semantic search and AI-powered skill matching to build stronger teams and unlock organizational expertise.
 
-## Overview
+## Table of Contents
 
-Peoplemesh models organizations as a graph-like mesh where each entity (people, opportunities, groups, communities, projects) is a node. It uses vector embeddings and semantic similarity matching to enable powerful search capabilities.
+- [Detailed Description](#detailed-description)
+  - [See it in Action](#see-it-in-action)
+  - [Architecture](#architecture)
+- [Requirements](#requirements)
+  - [Hardware Requirements](#hardware-requirements)
+  - [Software Requirements](#software-requirements)
+- [Deploy](#deploy)
+  - [Quick Start](#quick-start)
+  - [GPU Acceleration (Optional)](#gpu-acceleration-optional)
+  - [Verify Deployment](#verify-deployment)
+  - [Delete](#delete)
+- [Using the Application](#using-the-application)
+- [Advanced Configuration](#advanced-configuration)
+- [Reference](#reference)
+- [Tags](#tags)
 
-## Architecture
+## Detailed Description
 
-This deployment includes four main components:
+Organizations struggle to connect the right people with the right opportunities. Traditional directory searches rely on exact keyword matches, missing talented individuals whose skills are described differently or whose expertise lies hidden in résumés and project histories. This creates missed opportunities for staffing projects, forming teams, and leveraging existing organizational knowledge.
 
-1. **PostgreSQL with pgvector** - Vector database for storing embeddings
-2. **Docling** - Document parsing service for CV/PDF import
-3. **vLLM** (optional) - Local LLM inference server using KServe
-4. **Peoplemesh** - Main application with web UI and REST API
+This quickstart deploys **Peoplemesh**, an AI-powered talent discovery platform that uses semantic search and vector embeddings to understand the meaning behind searches, not just keywords. When someone searches for "mobile developer in Italy," the system understands related concepts like "iOS engineer," "Android developer," and geographic variations, surfacing the best matches even when exact words don't match. It processes résumés and profiles using large language models to extract skills, experience, and expertise automatically.
 
-## Prerequisites
+The platform enables organizations to find hidden talent, build diverse teams, identify skill gaps, and connect people with relevant opportunities—all through a simple search interface powered by open-source AI. Whether staffing a critical project, building a community of practice, or identifying mentors, Peoplemesh helps you find the right people quickly.
 
-- OpenShift cluster (4.12+)
-- Helm 3.x
-- `kubectl` or `oc` CLI
-- For local LLM deployment: OpenShift AI or KServe installed with GPU nodes available
+### See it in Action
 
-## Quick Start
+![Peoplemesh Screenshot](docs/images/screenshot1.png)
 
-### 1. Build Helm Dependencies
+**Key Features:**
+- 🔍 **Semantic Search**: Find people by skills, experience, location, or any combination using natural language
+- 📄 **AI Resume Processing**: Upload résumés and automatically extract structured profiles using LLMs
+- 🎯 **Smart Matching**: Vector embeddings understand "data scientist" matches "ML engineer" and "machine learning specialist"
+- 🌍 **Geographic Intelligence**: Understands locations, time zones, and work mode preferences
+- 🔐 **Enterprise Authentication**: Built-in Keycloak integration with support for Google, Microsoft, and custom OIDC providers
 
+### Architecture
+
+![Architecture Diagram](docs/images/architecture.png)
+
+**Components:**
+- **Peoplemesh Application**: React frontend + Quarkus backend serving the search interface and REST API
+- **Keycloak**: Authentication and user management with OIDC support
+- **PostgreSQL + pgvector**: Vector database for semantic search using embeddings
+- **Ollama** (or vLLM): Local LLM for query parsing and résumé processing
+- **Docling**: Document parsing service for extracting text from résumés (PDF, DOCX, etc.)
+
+**Data Flow:**
+1. User uploads résumé → Docling extracts text → LLM structures profile → Stored with vector embeddings
+2. User searches "mobile developer" → LLM parses intent → Vector similarity search → Ranked results
+3. Authentication flow → Keycloak OIDC → Session management → Secure API access
+
+## Requirements
+
+### Hardware Requirements
+
+**Minimum (CPU-only):**
+- **CPU**: 4 cores
+- **Memory**: 16 GB RAM
+- **Storage**: 100 GB available (50 GB for models, 50 GB for databases)
+
+**Recommended (with GPU acceleration for 10-20x faster performance):**
+- **CPU**: 8 cores
+- **Memory**: 32 GB RAM
+- **GPU**: 1x NVIDIA GPU with 16GB+ VRAM (A10G, T4, V100, or better)
+- **Storage**: 150 GB available
+
+**Notes:**
+- CPU-only mode works but résumé processing takes 2-3 minutes per upload
+- With GPU: résumé processing completes in 10-20 seconds
+- GPU requires NVIDIA GPU Operator installed on cluster
+
+### Software Requirements
+
+**Required:**
+- **OpenShift**: 4.12 or later
+- **Helm**: 3.x
+- **oc CLI**: Matching your OpenShift version
+- **Red Hat build of Keycloak Operator**: 24.0 or later (installed cluster-wide or in any namespace)
+
+**Verify Keycloak Operator:**
 ```bash
-cd peoplemesh-umbrella
-helm dependency build
+oc get csv -A | grep rhbk-operator
 ```
 
-### 2. Install with Default Configuration
+If not installed: OpenShift Console → OperatorHub → Search "Red Hat build of Keycloak" → Install
 
-This deploys with local LLM using vLLM:
+## Deploy
+
+### Quick Start
+
+**1. Clone the repository:**
+```bash
+git clone https://github.com/rh-ai-quickstart/peoplemesh-quickstart.git
+cd peoplemesh-quickstart/peoplemesh-umbrella
+```
+
+**2. Generate secure secrets:**
+```bash
+# Generate all required secrets
+export KC_DB_PASSWORD=$(openssl rand -base64 24)
+export PG_DB_PASSWORD=$(openssl rand -base64 24)
+export CLIENT_SECRET=$(openssl rand -base64 24)
+export SESSION_SECRET=$(openssl rand -base64 24)
+export OAUTH_SECRET=$(openssl rand -base64 24)
+export MAINT_KEY=$(openssl rand -base64 24)
+export TEST_USER_PASSWORD="SecurePassword1!"
+```
+
+**3. Build helm dependencies:**
+```bash
+helm dependency update
+```
+
+**4. Deploy (CPU-only mode):**
+```bash
+helm install peoplemesh . \
+  --namespace peoplemesh-quickstart \
+  --create-namespace \
+  --timeout 15m \
+  --wait \
+  --set keycloak.postgres.password="$KC_DB_PASSWORD" \
+  --set pgvector.postgres.password="$PG_DB_PASSWORD" \
+  --set keycloak.realm.client.clientSecret="$CLIENT_SECRET" \
+  --set peoplemesh.security.sessionSecret="$SESSION_SECRET" \
+  --set peoplemesh.security.oauthStateSecret="$OAUTH_SECRET" \
+  --set peoplemesh.security.maintenanceApiKey="$MAINT_KEY" \
+  --set keycloak.realm.testUser.password="$TEST_USER_PASSWORD"
+```
+
+**5. Get the application URL:**
+```bash
+echo "Application URL: https://$(oc get route peoplemesh -n peoplemesh-quickstart -o jsonpath='{.spec.host}')"
+```
+
+**6. Access the application:**
+- Open the URL in your browser
+- Click "Sign In"
+- Choose "Continue with Keycloak"
+- Login with:
+  - Username: `testuser@example.com`
+  - Password: `$TEST_USER_PASSWORD`
+
+**Deployment time:** ~10-15 minutes (models and images download on first install)
+
+### GPU Acceleration (Optional)
+
+For **10-20x faster** LLM inference and document processing, enable GPU:
 
 ```bash
 helm install peoplemesh . \
+  --namespace peoplemesh-quickstart \
   --create-namespace \
-  --namespace peoplemesh \
-  --set pgvector.postgres.password=YOUR_SECURE_PASSWORD
+  --timeout 15m \
+  --wait \
+  --set ollama.gpu.enabled=true \
+  --set docling.gpu.enabled=true \
+  --set keycloak.postgres.password="$KC_DB_PASSWORD" \
+  --set pgvector.postgres.password="$PG_DB_PASSWORD" \
+  --set keycloak.realm.client.clientSecret="$CLIENT_SECRET" \
+  --set peoplemesh.security.sessionSecret="$SESSION_SECRET" \
+  --set peoplemesh.security.oauthStateSecret="$OAUTH_SECRET" \
+  --set peoplemesh.security.maintenanceApiKey="$MAINT_KEY" \
+  --set keycloak.realm.testUser.password="$TEST_USER_PASSWORD"
 ```
 
-### 3. Install with External LLM
+**GPU Requirements:**
+- At least 1 NVIDIA GPU available in cluster
+- NVIDIA GPU Operator installed
+- GPU tolerations pre-configured (works with common taints like `nvidia.com/gpu`, `g5-gpu`)
 
-To use an external LLM service (e.g., OpenAI):
+See [GPU-SETUP.md](GPU-SETUP.md) for detailed GPU configuration.
+
+### Verify Deployment
+
+**Check all pods are running:**
+```bash
+oc get pods -n peoplemesh-quickstart
+```
+
+Expected output:
+```
+NAME                             READY   STATUS    RESTARTS   AGE
+docling-xxx                      1/1     Running   0          5m
+keycloak-0                       1/1     Running   0          5m
+keycloak-postgres-db-0           1/1     Running   0          5m
+ollama-0                         1/1     Running   0          5m
+peoplemesh-xxx                   1/1     Running   0          5m
+pgvector-0                       1/1     Running   0          5m
+```
+
+**Test the application:**
+```bash
+# Health check
+curl -k "https://$(oc get route peoplemesh -n peoplemesh-quickstart -o jsonpath='{.spec.host}')/q/health/ready"
+
+# Should return: {"status":"UP"}
+```
+
+**Verify GPU allocation (if enabled):**
+```bash
+oc describe pod ollama-0 -n peoplemesh-quickstart | grep nvidia.com/gpu
+# Should show: nvidia.com/gpu: 1 (in both Requests and Limits)
+```
+
+### Delete
+
+To completely remove the deployment and all data:
+
+```bash
+# Uninstall the helm release
+helm uninstall peoplemesh -n peoplemesh-quickstart
+
+# Delete the namespace (removes all persistent volumes and data)
+oc delete namespace peoplemesh-quickstart
+```
+
+**Warning:** This permanently deletes all data including:
+- All user profiles and uploaded résumés
+- Search history and analytics
+- Database contents
+- Keycloak users and configuration
+
+## Using the Application
+
+### Upload a Résumé
+
+1. Click your profile icon → "My Profile"
+2. Click "Upload CV"
+3. Select a PDF or DOCX résumé
+4. Wait 10-20 seconds (GPU) or 2-3 minutes (CPU) for processing
+5. Review extracted information and click "Apply Changes"
+
+**Supported formats:** PDF, DOCX, TXT
+
+### Search for People
+
+**Example searches:**
+- `data engineer with Python experience`
+- `mobile developer in Italy`
+- `senior architect who speaks Italian`
+- `machine learning engineer with 5+ years experience`
+
+**Search features:**
+- Semantic matching finds related terms (e.g., "ML" matches "machine learning")
+- Location-aware (understands cities, countries, regions)
+- Experience level filtering (junior, mid, senior, lead)
+- Language requirements
+- Industry experience
+
+**Score breakdown:** Click the ℹ️ icon next to each result to see how the score was calculated (semantic similarity, must-have skills, location match, etc.)
+
+### Add Additional Users
+
+Keycloak admin console:
+```bash
+echo "Keycloak URL: https://$(oc get route keycloak -n peoplemesh-quickstart -o jsonpath='{.spec.host}')"
+# Default admin credentials are auto-generated - check keycloak-admin-secret
+```
+
+## Advanced Configuration
+
+### External LLM Provider
+
+Use OpenAI or another provider instead of local Ollama (no GPU required):
 
 ```bash
 helm install peoplemesh . \
+  --namespace peoplemesh-quickstart \
   --create-namespace \
-  --namespace peoplemesh \
-  --set pgvector.postgres.password=YOUR_SECURE_PASSWORD \
-  --set vllm.enabled=false \
+  --set ollama.enabled=false \
   --set peoplemesh.llm.mode=external \
-  --set peoplemesh.llm.external.baseUrl=https://api.openai.com/v1 \
-  --set peoplemesh.llm.external.apiKey=YOUR_API_KEY \
-  --set peoplemesh.llm.external.chatModel=gpt-4o-mini \
-  --set peoplemesh.llm.external.embeddingModel=text-embedding-3-small \
-  --set peoplemesh.llm.external.embeddingDimension=1536
+  --set peoplemesh.llm.external.baseUrl="https://api.openai.com/v1" \
+  --set peoplemesh.llm.external.apiKey="sk-your-key-here" \
+  --set peoplemesh.llm.external.chatModel="gpt-4o-mini" \
+  # ... other required secrets
 ```
 
-### 4. Access the Application
-
-Get the route URL:
+### Custom Organization Branding
 
 ```bash
-oc get route peoplemesh -n peoplemesh
+--set peoplemesh.organization.name="Acme Corporation" \
+--set peoplemesh.organization.contactEmail="admin@acme.com" \
+--set peoplemesh.organization.dataLocation="United States" \
+--set peoplemesh.organization.governingLaw="State of California"
 ```
 
-Visit the URL in your browser to access the Peoplemesh UI.
+### Additional OIDC Providers
 
-## Configuration Options
-
-### Two Deployment Modes
-
-#### Mode 1: Local LLM (Default)
-Deploys vLLM with KServe for on-cluster inference. Requires GPU nodes.
-
-```yaml
-vllm:
-  enabled: true
-peoplemesh:
-  llm:
-    mode: local
-```
-
-#### Mode 2: External LLM
-Uses an external vLLM inference server or OpenAI-compatible API.
-
-```yaml
-vllm:
-  enabled: false
-peoplemesh:
-  llm:
-    mode: external
-    external:
-      baseUrl: "https://your-vllm-endpoint.com/v1"
-      apiKey: "your-api-key"
-      chatModel: "model-name"
-      embeddingModel: "embedding-model-name"
-```
-
-### Customize Values
-
-Create a custom `values.yaml` file (see [examples/values-openshift.yaml](examples/values-openshift.yaml)):
+Enable Google or Microsoft authentication alongside Keycloak:
 
 ```bash
-helm install peoplemesh . \
-  --namespace peoplemesh \
-  --create-namespace \
-  -f examples/values-openshift.yaml
+--set peoplemesh.oidc.google.clientId="your-google-client-id" \
+--set peoplemesh.oidc.google.clientSecret="your-google-secret" \
+--set peoplemesh.oidc.microsoft.clientId="your-microsoft-client-id" \
+--set peoplemesh.oidc.microsoft.clientSecret="your-microsoft-secret"
 ```
 
-## Components
+See [INSTALL.md](INSTALL.md) for complete configuration reference.
 
-### Individual Charts
+## Reference
 
-You can also deploy components individually:
+**Project Documentation:**
+- [Installation Guide](INSTALL.md) - Complete installation reference with all configuration options
+- [GPU Setup Guide](GPU-SETUP.md) - Detailed GPU configuration and troubleshooting
+- [Deployment Summary](QUICKSTART-SUMMARY.md) - Architecture decisions and design rationale
+- [Logout Fix Documentation](LOGOUT-FIX.md) - OIDC logout implementation details
 
-```bash
-# PostgreSQL only
-helm install pgvector charts/pgvector \
-  --namespace peoplemesh \
-  --set postgres.password=secure-password
+**Upstream Projects:**
+- [Peoplemesh GitHub](https://github.com/francescopace/peoplemesh) - Main application repository
+- [Peoplemesh Documentation](https://github.com/francescopace/peoplemesh/blob/main/docs/how-to/deploy-openshift-helm.md) - Upstream deployment guide
+- [Keycloak Documentation](https://www.keycloak.org/documentation) - Authentication server docs
+- [Red Hat build of Keycloak](https://access.redhat.com/products/red-hat-build-of-keycloak) - Enterprise Keycloak
 
-# Docling only
-helm install docling charts/docling \
-  --namespace peoplemesh
+**Technologies:**
+- [pgvector](https://github.com/pgvector/pgvector) - PostgreSQL extension for vector similarity search
+- [Ollama](https://ollama.ai/) - Local LLM runtime
+- [Docling](https://github.com/DS4SD/docling) - Document processing
+- [LangChain4j](https://docs.langchain4j.dev/) - Java LLM framework
 
-# vLLM only (requires KServe)
-helm install vllm charts/vllm \
-  --namespace peoplemesh
+**Related AI Quickstarts:**
+- [OpenShift AI Quickstarts](https://ai-on-openshift.io/odh-rhoai/configuration/) - Additional AI deployment patterns
+- [Red Hat AI Quickstart Catalog](https://github.com/rh-ai-quickstart) - Browse all quickstarts
 
-# Peoplemesh application only
-helm install peoplemesh charts/peoplemesh \
-  --namespace peoplemesh \
-  --set database.host=pgvector-service
-```
+## Tags
 
-## Configuration Reference
-
-### Database Configuration
-
-```yaml
-pgvector:
-  postgres:
-    userId: peoplemesh
-    password: changeme-secure-password  # REQUIRED
-    databaseName: peoplemesh
-    persistence:
-      size: 20Gi
-```
-
-### LLM Configuration (Local)
-
-```yaml
-vllm:
-  model:
-    storage:
-      uri: "hf://Qwen/Qwen2.5-7B-Instruct-AWQ"
-    resources:
-      limits:
-        nvidia.com/gpu: 1
-        memory: "12Gi"
-```
-
-### Organization Configuration
-
-```yaml
-peoplemesh:
-  organization:
-    name: "My Organization"
-    contactEmail: "contact@example.com"
-    dpoEmail: "dpo@example.com"
-    dataLocation: "US"
-    governingLaw: "US Law"
-```
-
-## Troubleshooting
-
-### Check Pod Status
-
-```bash
-oc get pods -n peoplemesh
-```
-
-### View Logs
-
-```bash
-# Peoplemesh application
-oc logs -f deployment/peoplemesh -n peoplemesh
-
-# PostgreSQL
-oc logs -f statefulset/pgvector -n peoplemesh
-
-# Docling
-oc logs -f deployment/docling -n peoplemesh
-
-# vLLM (if using local LLM)
-oc logs -f -l app=peoplemesh-llm -n peoplemesh
-```
-
-### Common Issues
-
-1. **vLLM pod not starting**: Ensure GPU nodes are available and KServe is installed
-2. **Database connection failures**: Check pgvector pod is running and password is correct
-3. **LLM timeout errors**: Increase timeout values or reduce model size
-
-## Uninstall
-
-```bash
-helm uninstall peoplemesh -n peoplemesh
-```
-
-To completely remove all resources including PVCs:
-
-```bash
-oc delete namespace peoplemesh
-```
-
-## Security Notes
-
-- Change default PostgreSQL password in production
-- Auto-generated secrets (session, OAuth state, maintenance key) are created on first install
-- For production, configure OIDC providers (Google, Microsoft) in values
-- Review GDPR compliance settings for your jurisdiction
-
-## Contributing
-
-Issues and pull requests are welcome at the [peoplemesh repository](https://github.com/francescopace/peoplemesh).
-
-## License
-
-See the [Peoplemesh project](https://github.com/francescopace/peoplemesh) for license information.
+**Industry:** Human Resources, Talent Management, Organizational Development
+**Use Cases:** Talent Discovery, Skills Management, Team Building, Knowledge Management
+**Technologies:** Vector Search, Semantic Search, LLM, RAG, OIDC Authentication
+**AI/ML:** Natural Language Processing, Embeddings, Retrieval-Augmented Generation

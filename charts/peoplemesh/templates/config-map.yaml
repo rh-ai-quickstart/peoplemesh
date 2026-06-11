@@ -17,17 +17,34 @@ data:
   HIBERNATE_BATCH_SIZE: "32"
   HIBERNATE_FETCH_SIZE: "100"
 
-  # LLM configuration (local mode)
-  {{- if eq .Values.llm.mode "local" }}
-  OPENAI_BASE_URL: "http://{{ .Values.llm.local.serviceName }}.{{ .Release.Namespace }}.svc.cluster.local/v1"
-  LLM_MODEL: {{ .Values.llm.local.modelName | quote }}
-  EMBEDDING_MODEL: {{ .Values.llm.local.modelName | quote }}
+  # Flyway configuration - enable seed data loading for demo/test environments
+  # Options: "classpath:db/migration,classpath:db/granite" or "classpath:db/migration,classpath:db/openai"
+  # For production: omit this or set to "classpath:db/migration" only
+  QUARKUS_FLYWAY_LOCATIONS: "classpath:db/migration,classpath:db/granite"
+
+  # LLM configuration
+  {{- if eq .Values.llm.mode "ollama" }}
+  # Ollama mode - local CPU-based LLM
+  OPENAI_BASE_URL: "http://{{ .Values.llm.ollama.serviceName }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.llm.ollama.port }}/v1"
+  LLM_MODEL: {{ .Values.llm.ollama.chatModel | quote }}
+  EMBEDDING_MODEL: {{ .Values.llm.ollama.embeddingModel | quote }}
+  EMBEDDING_DIMENSION: {{ .Values.llm.ollama.embeddingDimension | quote }}
+  # Increase timeout for CPU-based inference - first model load can take 30-60s
+  # Extended to 120s to handle edge cases with concurrent requests or complex queries
+  QUARKUS_LANGCHAIN4J_OPENAI_TIMEOUT: "240s"
+  {{- else if eq .Values.llm.mode "vllm" }}
+  # vLLM mode - GPU-based LLM (KServe)
+  OPENAI_BASE_URL: "http://{{ .Values.llm.vllm.serviceName }}.{{ .Release.Namespace }}.svc.cluster.local/v1"
+  LLM_MODEL: {{ .Values.llm.vllm.modelName | quote }}
+  EMBEDDING_MODEL: {{ .Values.llm.vllm.modelName | quote }}
   EMBEDDING_DIMENSION: "768"
+  {{- else if eq .Values.llm.mode "external" }}
+  # External LLM mode - configuration in secrets
   {{- end }}
 
   # Docling configuration
   {{- if .Values.docling.enabled }}
-  DOCLING_BASE_URL: "http://{{ .Values.docling.serviceName }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.docling.port }}"
+  QUARKUS_DOCLING_BASE_URL: "http://{{ .Values.docling.serviceName }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.docling.port }}"
   {{- end }}
 
   # CV Import configuration
@@ -35,6 +52,16 @@ data:
 
   # CORS configuration
   CORS_ORIGINS: {{ .Values.security.corsOrigins | quote }}
+
+  # Proxy configuration - trust X-Forwarded headers from OpenShift route
+  QUARKUS_HTTP_PROXY_PROXY_ADDRESS_FORWARDING: "true"
+  QUARKUS_HTTP_PROXY_ALLOW_X_FORWARDED: "true"
+  QUARKUS_HTTP_PROXY_ENABLE_FORWARDED_HOST: "true"
+  QUARKUS_HTTP_PROXY_ENABLE_FORWARDED_PREFIX: "true"
+
+  # HTTP timeouts - increase for long-running operations like CV import
+  QUARKUS_HTTP_IDLE_TIMEOUT: "5m"
+  QUARKUS_HTTP_READ_TIMEOUT: "5m"
 
   # Organization configuration
   ORGANIZATION_NAME: {{ .Values.organization.name | quote }}

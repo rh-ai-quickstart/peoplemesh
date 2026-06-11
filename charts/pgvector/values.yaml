@@ -4,7 +4,7 @@ postgres:
   # Database configuration
   # These values should be overridden during installation
   userId: peoplemesh
-  password: changeme
+  password: ""  # REQUIRED - no default value
   databaseName: peoplemesh
 
   # PostgreSQL image (OpenShift-compatible, runs rootless)

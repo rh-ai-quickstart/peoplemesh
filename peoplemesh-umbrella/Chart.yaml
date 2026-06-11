@@ -12,6 +12,11 @@ sources:
 
 # Dependencies - Helm will install these in order
 dependencies:
+  - name: keycloak
+    version: 0.1.0
+    repository: "file://../charts/keycloak"
+    condition: keycloak.enabled
+
   - name: pgvector
     version: 0.1.0
     repository: "file://../charts/pgvector"
@@ -26,6 +31,11 @@ dependencies:
     version: 0.1.0
     repository: "file://../charts/vllm"
     condition: vllm.enabled
+
+  - name: ollama
+    version: 0.1.0
+    repository: "file://../charts/ollama"
+    condition: ollama.enabled
 
   - name: peoplemesh
     version: 0.1.0

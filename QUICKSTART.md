@@ -1,126 +1,55 @@
-# Peoplemesh Quickstart - TL;DR
+# Peoplemesh Quickstart - Single Command Install
 
-Get Peoplemesh running on OpenShift in 5 minutes.
-
-## Prerequisites
-
-- OpenShift cluster with `oc` CLI configured
-- Helm 3.x installed
-
-## Option 1: With External LLM (Fastest)
+## Quick Install (All Secrets Required)
 
 ```bash
-cd peoplemesh-umbrella
-helm dependency build
-
-helm install peoplemesh . \
+helm install peoplemesh peoplemesh-umbrella \
+  --namespace peoplemesh-quickstart \
   --create-namespace \
-  --namespace peoplemesh \
-  --set pgvector.postgres.password=MySecurePass123 \
-  --set vllm.enabled=false \
-  --set peoplemesh.llm.mode=external \
-  --set peoplemesh.llm.external.baseUrl=https://api.openai.com/v1 \
-  --set peoplemesh.llm.external.apiKey=sk-YOUR-OPENAI-KEY \
-  --set peoplemesh.llm.external.chatModel=gpt-4o-mini \
-  --set peoplemesh.llm.external.embeddingModel=text-embedding-3-small \
-  --set peoplemesh.llm.external.embeddingDimension=1536
+  --timeout 15m \
+  --wait \
+  --set keycloak.postgres.password="YourKeycloakDbPassword123" \
+  --set pgvector.postgres.password="YourPgvectorDbPassword123" \
+  --set keycloak.realm.client.clientSecret="your-client-secret-min-32-chars-here" \
+  --set peoplemesh.security.sessionSecret="your-session-secret-min-32-chars-here" \
+  --set peoplemesh.security.oauthStateSecret="your-oauth-secret-min-32-chars-here" \
+  --set peoplemesh.security.maintenanceApiKey="your-maint-key-min-32-chars-here" \
+  --set keycloak.realm.testUser.password="YourTestUserPassword"
 ```
 
-## Option 2: With Local LLM (Requires GPU)
+**Important:** Replace all placeholder values with your own secrets. **Use the same values for reinstallation** to preserve sessions.
 
-```bash
-cd peoplemesh-umbrella
-helm dependency build
+## What Gets Installed
 
-helm install peoplemesh . \
-  --create-namespace \
-  --namespace peoplemesh \
-  --set pgvector.postgres.password=MySecurePass123
-```
+- ✅ Keycloak (OIDC authentication server)
+- ✅ PostgreSQL databases (Keycloak + Peoplemesh with pgvector)
+- ✅ Ollama (local LLM with granite models)
+- ✅ Docling (document processing)
+- ✅ Peoplemesh application with test data (500 users, 200 jobs, 2000 skills)
 
 ## Access the Application
 
 ```bash
-# Get the URL
-oc get route peoplemesh -n peoplemesh -o jsonpath='{.spec.host}'
+# Get application URL
+oc get route peoplemesh -n peoplemesh-quickstart -o jsonpath='{.spec.host}'
 
-# Get maintenance API key
-oc get secret peoplemesh-secrets -n peoplemesh \
-  -o jsonpath='{.data.MAINTENANCE_API_KEY}' | base64 -d
-```
-
-## Verify Deployment
-
-```bash
-# Run verification script
-./scripts/verify-deployment.sh
-
-# Check pod status
-oc get pods -n peoplemesh
-
-# View logs
-oc logs -f deployment/peoplemesh -n peoplemesh
+# Login with test user
+# Username: testuser
+# Password: changeme123
 ```
 
 ## Uninstall
 
 ```bash
-helm uninstall peoplemesh -n peoplemesh
-oc delete project peoplemesh
+helm uninstall peoplemesh --namespace peoplemesh-quickstart
 ```
 
-## Next Steps
+**Complete cleanup** - removes all resources including PVCs.
 
-- Read [README.md](README.md) for detailed configuration options
-- Review [docs/deployment-guide.md](docs/deployment-guide.md) for production setup
-- Customize [examples/values-openshift.yaml](examples/values-openshift.yaml)
+## Reinstall
 
-## Troubleshooting
+Use **the exact same secret values** for reinstallation to avoid cookie/session issues.
 
-| Issue | Solution |
-|-------|----------|
-| Database connection fails | Check `oc get pods pgvector-0` is Running |
-| vLLM pod pending | Verify GPU nodes: `oc get nodes -l nvidia.com/gpu.present=true` |
-| Route not accessible | Check route: `oc get route peoplemesh -n peoplemesh` |
-| LLM timeout | Increase `route.timeout` in values or use smaller model |
+## Full Documentation
 
-## Architecture
-
-```
-┌─────────────────┐
-│   Peoplemesh    │  (Main Application)
-│   Web UI + API  │
-└────────┬────────┘
-         │
-    ┌────┴────┬──────────┬──────────┐
-    │         │          │          │
-┌───▼────┐ ┌─▼──────┐ ┌─▼──────┐ ┌─▼──────┐
-│ PostgreSQL │ │ Docling │ │  vLLM  │ │External│
-│ +pgvector  │ │ Service │ │ (opt.) │ │LLM(opt)│
-└───────────┘ └────────┘ └────────┘ └────────┘
-```
-
-## Component Versions
-
-- **PostgreSQL**: 15 with pgvector extension
-- **Docling**: Latest CPU-optimized image
-- **vLLM**: v0.11.0 with Qwen2.5-7B-AWQ (default)
-- **Peoplemesh**: Latest from `frapax/peoplemesh`
-
-## Resources Required
-
-### Minimal (External LLM)
-- 2 CPU cores
-- 4GB RAM
-- 20GB storage
-
-### With Local LLM
-- 1 GPU (24GB VRAM)
-- 6 CPU cores
-- 20GB RAM
-- 50GB storage
-
-## Support
-
-- Issues: https://github.com/francescopace/peoplemesh/issues
-- Docs: See [docs/](docs/) directory
+See [INSTALL.md](./INSTALL.md) for complete installation guide with secret generation examples.

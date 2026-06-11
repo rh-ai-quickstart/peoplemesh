@@ -1,0 +1,97 @@
+========================================
+Peoplemesh Quickstart Deployed!
+========================================
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+Components Deployed:
+{{- if .Values.keycloak.enabled }}
+  ✓ Keycloak authentication server
+{{- end }}
+{{- if .Values.pgvector.enabled }}
+  ✓ PostgreSQL with pgvector
+{{- end }}
+{{- if .Values.docling.enabled }}
+  ✓ Docling document processing
+{{- end }}
+{{- if .Values.vllm.enabled }}
+  ✓ vLLM inference server (KServe)
+{{- end }}
+  ✓ Peoplemesh application
+
+Application URL:
+{{- $peoplemeshRoute := lookup "route.openshift.io/v1" "Route" .Release.Namespace "peoplemesh" }}
+{{- if $peoplemeshRoute }}
+  https://{{ $peoplemeshRoute.spec.host }}
+
+  Access the application:
+    curl -k https://{{ $peoplemeshRoute.spec.host }}/api/v1/info
+{{- else }}
+  Run this command to get the URL:
+    echo "https://$(oc get route peoplemesh -n {{ .Release.Namespace }} -o jsonpath='{.spec.host}')"
+{{- end }}
+
+{{- if .Values.keycloak.enabled }}
+
+Keycloak Admin Console:
+{{- $keycloakRoute := lookup "route.openshift.io/v1" "Route" .Release.Namespace "keycloak" }}
+{{- if $keycloakRoute }}
+  https://{{ $keycloakRoute.spec.host }}/admin
+{{- else }}
+  Run this command to get the URL:
+    echo "https://$(oc get route keycloak -n {{ .Release.Namespace }} -o jsonpath='{.spec.host}')/admin"
+{{- end }}
+
+{{- if .Values.keycloak.realm.testUser.enabled }}
+
+Test User Login:
+  Username: {{ .Values.keycloak.realm.testUser.username }}
+  Email: {{ .Values.keycloak.realm.testUser.email }}
+  Password: {{ .Values.keycloak.realm.testUser.password }}
+
+  Login Steps:
+    1. Navigate to the application URL above
+    2. Click "Sign in"
+    3. Choose "Continue with Keycloak"
+    4. Login with the credentials above
+{{- end }}
+{{- end }}
+
+Database:
+  Host: {{ .Values.peoplemesh.database.host }}
+  Port: {{ .Values.peoplemesh.database.port }}
+  Database: {{ .Values.peoplemesh.database.name }}
+
+{{- if eq .Values.peoplemesh.llm.mode "local" }}
+
+LLM Configuration:
+  Mode: Local vLLM
+  Service: {{ .Values.peoplemesh.llm.local.serviceName }}
+  Model: {{ .Values.peoplemesh.llm.local.modelName }}
+{{- else }}
+
+LLM Configuration:
+  Mode: External
+  Base URL: {{ .Values.peoplemesh.llm.external.baseUrl }}
+  Chat Model: {{ .Values.peoplemesh.llm.external.chatModel }}
+{{- end }}
+
+Next Steps:
+  1. Wait for all pods to be ready:
+     oc get pods -n {{ .Release.Namespace }} -w
+
+  2. Check application health:
+     oc get pods -n {{ .Release.Namespace }}
+
+  3. View logs:
+     oc logs -f deployment/peoplemesh -n {{ .Release.Namespace }}
+
+  4. Access the application and login with Keycloak test user
+
+For troubleshooting:
+  oc describe deployment peoplemesh -n {{ .Release.Namespace }}
+  oc get events -n {{ .Release.Namespace }} --sort-by='.lastTimestamp'
+
+Documentation:
+  https://github.com/rh-ai-quickstart/peoplemesh

@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-cleanup-pvcs
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "peoplemesh-umbrella.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    # Run before install to clean up any leftover PVCs from previous installs
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-30"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      name: {{ .Release.Name }}-cleanup-pvcs
+    spec:
+      serviceAccountName: {{ .Release.Name }}-cleanup
+      restartPolicy: Never
+      containers:
+        - name: cleanup
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+
+              echo "Cleaning up old PVCs in namespace {{ .Release.Namespace }}..."
+
+              # Delete database PVCs from previous installs
+              oc delete pvc postgres-data-keycloak-postgres-db-0 -n {{ .Release.Namespace }} --ignore-not-found=true
+              oc delete pvc pgvector-data-pgvector-0 -n {{ .Release.Namespace }} --ignore-not-found=true
+
+              echo "PVC cleanup completed!"

@@ -17,16 +17,17 @@ spec:
       labels:
         app.kubernetes.io/name: {{ .Values.applicationName }}
     spec:
+      {{- with .Values.docling.tolerations }}
       tolerations:
-        - key: "nvidia.com/gpu"
-          operator: "Exists"
-          effect: "NoSchedule"
-        - key: "g5-gpu"
-          operator: "Exists"
-          effect: "NoSchedule"
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ .Values.applicationName }}
+          {{- if .Values.gpu.enabled }}
+          image: quay.io/docling-project/docling-serve:latest
+          {{- else }}
           image: {{ .Values.docling.image.repository }}:{{ .Values.docling.image.tag }}
+          {{- end }}
           imagePullPolicy: {{ .Values.docling.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.docling.service.targetPort }}
@@ -52,4 +53,15 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 3
           resources:
-            {{- toYaml .Values.docling.resources | nindent 12 }}
+            requests:
+              cpu: {{ .Values.docling.resources.requests.cpu }}
+              memory: {{ .Values.docling.resources.requests.memory }}
+              {{- if .Values.gpu.enabled }}
+              nvidia.com/gpu: "1"
+              {{- end }}
+            limits:
+              cpu: {{ .Values.docling.resources.limits.cpu }}
+              memory: {{ .Values.docling.resources.limits.memory }}
+              {{- if .Values.gpu.enabled }}
+              nvidia.com/gpu: "1"
+              {{- end }}

@@ -1,7 +1,13 @@
 applicationName: docling
 
+# GPU acceleration - set to true to require GPU for faster document processing
+# Default: false (CPU-only) for maximum compatibility
+gpu:
+  enabled: false
+
 docling:
   # Docling image configuration
+  # Note: Image changes automatically when gpu.enabled=true
   image:
     repository: quay.io/docling-project/docling-serve-cpu
     tag: latest
@@ -15,7 +21,7 @@ docling:
   # Enable the Docling UI at /ui endpoint
   enableUI: true
 
-  # Resource limits
+  # Resource limits - GPU resources are conditionally added based on gpu.enabled flag
   resources:
     requests:
       cpu: 500m
@@ -26,3 +32,12 @@ docling:
 
   # Replica configuration
   replicas: 1
+
+  # Tolerations for GPU nodes - pre-configured for common GPU taints
+  tolerations:
+    - key: g5-gpu
+      operator: Exists
+      effect: NoSchedule
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule

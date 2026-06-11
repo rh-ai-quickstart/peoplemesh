@@ -4,9 +4,9 @@ applicationName: peoplemesh
 peoplemesh:
   # Container image
   image:
-    repository: frapax/peoplemesh
-    tag: main
-    pullPolicy: IfNotPresent
+    repository: quay.io/rh-ai-quickstart/peoplemesh
+    tag: latest
+    pullPolicy: Always
 
   # Service configuration
   service:
@@ -82,12 +82,16 @@ security:
 
   # OIDC providers (AT LEAST ONE IS REQUIRED)
   oidc:
+    keycloak:
+      clientId: ""  # REQUIRED for Keycloak authentication
+      clientSecret: ""
+      issuerUrl: ""  # e.g., https://keycloak.example.com/realms/peoplemesh
     google:
-      clientId: ""  # REQUIRED if not using Microsoft
-      clientSecret: ""
+      clientId: "none"  # Set to "none" to disable
+      clientSecret: "none"
     microsoft:
-      clientId: ""  # REQUIRED if not using Google
-      clientSecret: ""
+      clientId: "none"  # Set to "none" to disable
+      clientSecret: "none"
 
 # Organization configuration
 organization:
