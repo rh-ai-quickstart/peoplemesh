@@ -1,6 +1,6 @@
 # Deploy an AI-Powered Talent Discovery Platform
 
-Connect people with opportunities using semantic search and AI-powered skill matching to build stronger teams and unlock organizational expertise.
+Connect people with opportunities using semantic search and AI-powered skill matching to build stronger teams and unlock organizational expertise. Built with **Red Hat build of Keycloak** for enterprise authentication and **Docling** for intelligent document processing.
 
 ## Table of Contents
 
@@ -24,7 +24,7 @@ Connect people with opportunities using semantic search and AI-powered skill mat
 
 Organizations struggle to connect the right people with the right opportunities. Traditional directory searches rely on exact keyword matches, missing talented individuals whose skills are described differently or whose expertise lies hidden in résumés and project histories. This creates missed opportunities for staffing projects, forming teams, and leveraging existing organizational knowledge.
 
-This quickstart deploys **Peoplemesh**, an AI-powered talent discovery platform that uses semantic search and vector embeddings to understand the meaning behind searches, not just keywords. When someone searches for "mobile developer in Italy," the system understands related concepts like "iOS engineer," "Android developer," and geographic variations, surfacing the best matches even when exact words don't match. It processes résumés and profiles using large language models to extract skills, experience, and expertise automatically.
+This quickstart deploys **Peoplemesh**, an AI-powered talent discovery platform that uses semantic search and vector embeddings to understand the meaning behind searches, not just keywords. When someone searches for "mobile developer in Italy," the system understands related concepts like "iOS engineer," "Android developer," and geographic variations, surfacing the best matches even when exact words don't match. It leverages **Docling**, IBM Research's open-source document understanding platform, to intelligently parse résumés in multiple formats (PDF, DOCX, images) and extract structured information, while **Red Hat build of Keycloak** provides enterprise-grade authentication with support for multiple identity providers.
 
 The platform enables organizations to find hidden talent, build diverse teams, identify skill gaps, and connect people with relevant opportunities—all through a simple search interface powered by open-source AI. Whether staffing a critical project, building a community of practice, or identifying mentors, Peoplemesh helps you find the right people quickly.
 
@@ -34,10 +34,10 @@ The platform enables organizations to find hidden talent, build diverse teams, i
 
 **Key Features:**
 - 🔍 **Semantic Search**: Find people by skills, experience, location, or any combination using natural language
-- 📄 **AI Resume Processing**: Upload résumés and automatically extract structured profiles using LLMs
+- 📄 **Intelligent Document Processing**: **Docling** (IBM Research) automatically parses résumés in any format—PDFs, Word docs, even scanned images—with intelligent layout detection and structure preservation
 - 🎯 **Smart Matching**: Vector embeddings understand "data scientist" matches "ML engineer" and "machine learning specialist"
 - 🌍 **Geographic Intelligence**: Understands locations, time zones, and work mode preferences
-- 🔐 **Enterprise Authentication**: Built-in Keycloak integration with support for Google, Microsoft, and custom OIDC providers
+- 🔐 **Enterprise Authentication**: **Red Hat build of Keycloak** provides production-ready authentication with OIDC/SAML, multi-factor authentication, user federation, and support for Google, Microsoft, LDAP, and custom identity providers
 
 ### Architecture
 
@@ -49,47 +49,54 @@ graph TB
             API[Peoplemesh API<br/>Quarkus REST]
         end
         
-        subgraph "Authentication"
-            KC[Keycloak Server<br/>OIDC Provider]
+        subgraph "Enterprise Authentication"
+            KC["⭐ Red Hat build of Keycloak<br/>OIDC/SAML Provider<br/>Multi-IDP Support"]
             KCDB[(Keycloak DB<br/>PostgreSQL)]
+            KCOP[Red Hat build of<br/>Keycloak Operator<br/>REQUIRED]
         end
         
-        subgraph "AI Services"
-            LLM[Ollama<br/>Granite 3B]
-            DOC[Docling<br/>Document Parser]
+        subgraph "AI Document Processing"
+            DOC["⭐ Docling<br/>IBM Research Document Parser<br/>PDF/DOCX/Images → Structured Text"]
+            LLM[Ollama<br/>Granite 3B<br/>Query & Profile Parsing]
         end
         
         subgraph "Data Layer"
-            PGVEC[(PgVector DB<br/>PostgreSQL + pgvector)]
+            PGVEC[(PgVector DB<br/>PostgreSQL + pgvector<br/>Semantic Search)]
         end
         
-        USER[User] -->|HTTPS| ROUTE[OpenShift Route]
-        ROUTE -->|TLS| UI
+        USER[👤 User] -->|HTTPS| ROUTE[OpenShift Route]
+        ROUTE -->|TLS Termination| UI
         UI -->|API Calls| API
         
-        API -->|OIDC Auth| KC
+        API -->|OIDC Authentication| KC
         KC -->|User Data| KCDB
+        KCOP -.->|Manages| KC
         
-        API -->|Query Parsing<br/>CV Structuring| LLM
-        API -->|Resume Parsing| DOC
-        API -->|Vector Search<br/>Profile Storage| PGVEC
+        API -->|1. Resume Upload| DOC
+        DOC -->|Extracted Text| API
+        API -->|2. Structure Profile| LLM
+        LLM -->|Structured Data| API
+        API -->|3. Store + Embed| PGVEC
         
-        LLM -.->|Optional| GPU1[NVIDIA GPU<br/>A10G 23GB]
-        DOC -.->|Optional| GPU2[NVIDIA GPU<br/>A10G 23GB]
+        DOC -.->|Optional GPU<br/>Acceleration| GPU1[🎮 NVIDIA GPU<br/>A10G 23GB VRAM]
+        LLM -.->|Optional GPU<br/>Acceleration| GPU2[🎮 NVIDIA GPU<br/>A10G 23GB VRAM]
     end
+    
+    classDef highlighted fill:#ffe0b2,stroke:#ff6f00,stroke-width:3px
+    class KC,DOC highlighted
 ```
 
 **Components:**
 - **Peoplemesh Application**: React frontend + Quarkus backend serving the search interface and REST API
-- **Keycloak**: Authentication and user management with OIDC support
+- **Red Hat build of Keycloak**: Enterprise authentication server providing OIDC/SAML support, user management, and integration with external identity providers (Google, Microsoft, LDAP, etc.)
+- **Docling**: IBM Research's document understanding platform that intelligently parses résumés and documents, extracting text from PDFs, DOCX, images, and other formats with layout awareness and structure preservation
 - **PostgreSQL + pgvector**: Vector database for semantic search using embeddings
 - **Ollama** (or vLLM): Local LLM for query parsing and résumé processing
-- **Docling**: Document parsing service for extracting text from résumés (PDF, DOCX, etc.)
 
 **Data Flow:**
-1. User uploads résumé → Docling extracts text → LLM structures profile → Stored with vector embeddings
+1. User uploads résumé → **Docling** intelligently parses document structure and extracts text → LLM structures profile → Stored with vector embeddings
 2. User searches "mobile developer" → LLM parses intent → Vector similarity search → Ranked results
-3. Authentication flow → Keycloak OIDC → Session management → Secure API access
+3. Authentication flow → **Red Hat build of Keycloak** OIDC → Session management → Secure API access
 
 ## Requirements
 
@@ -117,14 +124,28 @@ graph TB
 - **OpenShift**: 4.12 or later
 - **Helm**: 3.x
 - **oc CLI**: Matching your OpenShift version
-- **Red Hat build of Keycloak Operator**: 24.0 or later (installed cluster-wide or in any namespace)
+- **Red Hat build of Keycloak Operator**: 24.0 or later
 
-**Verify Keycloak Operator:**
+**IMPORTANT - Keycloak Operator Installation:**
+
+The **Red Hat build of Keycloak Operator** must be installed in the **target namespace** (where you'll deploy Peoplemesh) before running helm install.
+
+**Install the operator:**
+1. OpenShift Console → OperatorHub
+2. Search for "Red Hat build of Keycloak"
+3. Click "Install"
+4. **Installation Mode**: Select "A specific namespace on the cluster"
+5. **Installed Namespace**: Choose or create the namespace where you'll deploy Peoplemesh (e.g., `peoplemesh-quickstart`)
+6. Click "Install"
+7. Wait for the operator to show "Succeeded" status
+
+**Verify operator is running in your target namespace:**
 ```bash
-oc get csv -A | grep rhbk-operator
+oc get csv -n peoplemesh-quickstart | grep rhbk-operator
+# Should show: rhbk-operator.v24.x.x   Red Hat build of Keycloak   24.x.x   Succeeded
 ```
 
-If not installed: OpenShift Console → OperatorHub → Search "Red Hat build of Keycloak" → Install
+**Why namespace-scoped?** This deployment creates Keycloak custom resources (CRs) that the operator watches. The operator must be in the same namespace to manage these resources.
 
 ## Deploy
 
@@ -266,13 +287,34 @@ oc delete namespace peoplemesh-quickstart
 
 ### Upload a Résumé
 
+**Powered by Docling** - IBM Research's intelligent document parser that understands document structure and layout:
+
 1. Click your profile icon → "My Profile"
 2. Click "Upload CV"
-3. Select a PDF or DOCX résumé
-4. Wait 10-20 seconds (GPU) or 2-3 minutes (CPU) for processing
-5. Review extracted information and click "Apply Changes"
+3. Select a résumé (PDF, DOCX, or image format)
+4. **Docling processes the document:**
+   - Detects document layout and structure
+   - Extracts text while preserving formatting
+   - Handles multi-column layouts, tables, and headers
+   - Processes scanned documents and images (OCR)
+5. AI structures the extracted text into profile fields
+6. Wait 10-20 seconds (GPU) or 2-3 minutes (CPU) for complete processing
+7. Review extracted information and click "Apply Changes"
 
-**Supported formats:** PDF, DOCX, TXT
+**Example: Docling Document Processing Output**
+
+![Docling Processing Output](docs/images/docling.png)
+
+*Docling intelligently extracts structured content from résumés, preserving layout and formatting for accurate AI processing.*
+
+**Supported formats:** PDF, DOCX, TXT, PNG, JPG (images/scanned documents)
+
+**Docling advantages:**
+- ✅ Intelligent layout detection (handles complex résumé formats)
+- ✅ Table extraction (work history, education sections)
+- ✅ Multi-language support
+- ✅ Scanned document support with OCR
+- ✅ GPU acceleration for faster processing
 
 ### Search for People
 
@@ -350,13 +392,22 @@ See [INSTALL.md](INSTALL.md) for complete configuration reference.
 **Upstream Projects:**
 - [Peoplemesh GitHub](https://github.com/francescopace/peoplemesh) - Main application repository
 - [Peoplemesh Documentation](https://github.com/francescopace/peoplemesh/blob/main/docs/how-to/deploy-openshift-helm.md) - Upstream deployment guide
-- [Keycloak Documentation](https://www.keycloak.org/documentation) - Authentication server docs
-- [Red Hat build of Keycloak](https://access.redhat.com/products/red-hat-build-of-keycloak) - Enterprise Keycloak
 
-**Technologies:**
+**Key Technologies Featured in This Quickstart:**
+
+**Red Hat build of Keycloak:**
+- [Product Page](https://access.redhat.com/products/red-hat-build-of-keycloak) - Enterprise authentication and authorization
+- [Operator Documentation](https://access.redhat.com/documentation/en-us/red_hat_build_of_keycloak) - Installation and configuration guide
+- [Keycloak Project](https://www.keycloak.org/documentation) - Upstream Keycloak documentation
+
+**Docling (IBM Research):**
+- [Docling GitHub](https://github.com/DS4SD/docling) - Document understanding and parsing
+- [Docling Documentation](https://ds4sd.github.io/docling/) - API reference and usage guide
+- [Research Paper](https://arxiv.org/abs/2408.09869) - Technical deep dive on document AI
+
+**Additional Technologies:**
 - [pgvector](https://github.com/pgvector/pgvector) - PostgreSQL extension for vector similarity search
 - [Ollama](https://ollama.ai/) - Local LLM runtime
-- [Docling](https://github.com/DS4SD/docling) - Document processing
 - [LangChain4j](https://docs.langchain4j.dev/) - Java LLM framework
 
 **Related AI Quickstarts:**
