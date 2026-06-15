@@ -12,10 +12,10 @@ postgres:
   password: ""  # REQUIRED - no default value
   database: keycloak
 
-  # PostgreSQL image
+  # PostgreSQL image (same as pgvector - proven to work)
   image:
-    repository: postgres
-    tag: "15"
+    repository: quay.io/rh-aiservices-bu/postgresql-15-pgvector-c9s
+    tag: latest
     pullPolicy: IfNotPresent
 
   # Service configuration

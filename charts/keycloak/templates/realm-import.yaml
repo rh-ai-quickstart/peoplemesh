@@ -64,6 +64,9 @@ spec:
           # PKCE is a security best practice for SPAs but requires code_verifier/code_challenge
           # For now, PKCE is disabled to allow standard OAuth 2.0 authorization code flow
           oauth2.pkce.code.challenge.method: ""
+          # Post-logout redirect URIs - allows redirect to root after logout
+          # Dynamically resolves for any cluster/namespace
+          post.logout.redirect.uris: "{{ include "keycloak.peoplemeshWebOrigin" . }}/*"
         defaultClientScopes:
           - web-origins
           - acr

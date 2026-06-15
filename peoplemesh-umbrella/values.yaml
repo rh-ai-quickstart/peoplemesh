@@ -23,8 +23,8 @@ keycloak:
     password: ""  # REQUIRED - no default value
     database: keycloak
     image:
-      repository: postgres
-      tag: "15"
+      repository: quay.io/rh-aiservices-bu/postgresql-15-pgvector-c9s
+      tag: latest
       pullPolicy: IfNotPresent
     service:
       name: keycloak-postgres-db

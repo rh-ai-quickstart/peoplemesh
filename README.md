@@ -174,6 +174,8 @@ export TEST_USER_PASSWORD="SecurePassword1!"
 helm dependency update
 ```
 
+**Note:** If you make any changes to the helm charts (e.g., updating values in `charts/keycloak/`, `charts/pgvector/`, etc.), you **must** run `helm dependency update` again before deploying. This repackages the updated charts into the umbrella chart.
+
 **4. Deploy (CPU-only mode):**
 ```bash
 helm install peoplemesh . \
