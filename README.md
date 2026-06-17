@@ -1,6 +1,6 @@
-# Deploy an AI-Powered Talent Discovery Platform
+# Deploy AI-Powered Talent Discovery with Semantic Search
 
-Connect people with opportunities using semantic search and AI-powered skill matching to build stronger teams and unlock organizational expertise. Built with **Red Hat build of Keycloak** for enterprise authentication and **Docling** for intelligent document processing.
+Learn to build semantic search that finds talent by meaning, not keywords, using Keycloak, Docling, and embeddings on OpenShift.
 
 ## Table of Contents
 
@@ -418,7 +418,7 @@ See [INSTALL.md](INSTALL.md) for complete configuration reference.
 
 ## Tags
 
-**Industry:** Human Resources, Talent Management, Organizational Development
-**Use Cases:** Talent Discovery, Skills Management, Team Building, Knowledge Management
+**Industry:** Media and IT services
+**Use Cases:** Human Resources, Talent Discovery, Skills Management, Team Building, Knowledge Management
 **Technologies:** Vector Search, Semantic Search, LLM, RAG, OIDC Authentication
 **AI/ML:** Natural Language Processing, Embeddings, Retrieval-Augmented Generation
