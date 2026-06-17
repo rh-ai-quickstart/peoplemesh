@@ -1,4 +1,4 @@
-# Deploy AI-Powered Talent Discovery with Semantic Search
+# Deploy AI-powered talent discovery with semantic search
 
 Learn to build semantic search that finds talent by meaning, not keywords, using Keycloak, Docling, and embeddings on OpenShift.
 
