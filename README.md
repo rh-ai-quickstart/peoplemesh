@@ -418,7 +418,7 @@ See [INSTALL.md](INSTALL.md) for complete configuration reference.
 
 ## Tags
 
-**Industry:** Media and IT services
-**Use Cases:** Human Resources, Talent Discovery, Skills Management, Team Building, Knowledge Management
-**Technologies:** Vector Search, Semantic Search, LLM, RAG, OIDC Authentication
-**AI/ML:** Natural Language Processing, Embeddings, Retrieval-Augmented Generation
+* **Industry:** Media and IT services
+* **Use Cases:** Human Resources, Talent Discovery, Skills Management, Team Building, Knowledge Management
+* **Technologies:** Vector Search, Semantic Search, LLM, RAG, OIDC Authentication
+* **AI/ML:** Natural Language Processing, Embeddings, Retrieval-Augmented Generation
