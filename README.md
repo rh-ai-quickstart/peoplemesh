@@ -159,14 +159,13 @@ cd peoplemesh-quickstart/peoplemesh-umbrella
 
 **2. Generate secure secrets:**
 ```bash
-# Generate all required secrets
 export KC_DB_PASSWORD=$(openssl rand -base64 24)
 export PG_DB_PASSWORD=$(openssl rand -base64 24)
 export CLIENT_SECRET=$(openssl rand -base64 24)
 export SESSION_SECRET=$(openssl rand -base64 24)
 export OAUTH_SECRET=$(openssl rand -base64 24)
 export MAINT_KEY=$(openssl rand -base64 24)
-export TEST_USER_PASSWORD="SecurePassword1!"
+export TEST_USER_PASSWORD="SecurePassword1"
 ```
 
 **3. Build helm dependencies:**
