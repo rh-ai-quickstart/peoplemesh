@@ -1,0 +1,37 @@
+# Exclude unnecessary files from Docker build context
+# This speeds up builds and reduces image size
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (already in manifest)
+*.md
+!installer/README.md
+docs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.log
+*.tmp
+.cache/
+
+# Don't need the installer directory itself in the context
+# (files are copied explicitly in Dockerfile)
+installer/README.md
+
+# Test files
+test/
+tests/
+*.test.sh

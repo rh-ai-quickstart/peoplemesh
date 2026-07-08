@@ -1,0 +1,301 @@
+# Example Kubernetes Job that Project Navigator would submit
+# to deploy the Peoplemesh quickstart using the installer container
+#
+# This demonstrates how Navigator orchestrates quickstart deployment:
+# 1. Creates a ServiceAccount with required RBAC permissions
+# 2. Creates a Job that runs the installer container
+# 3. Passes all configuration as environment variables
+# 4. Monitors job logs for JSON status updates
+# 5. Reports progress to user via chat interface
+
+---
+# ServiceAccount for the installer job
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: quickstart-installer
+  namespace: peoplemesh-quickstart
+
+---
+# Role with permissions needed to deploy the quickstart
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: quickstart-installer
+  namespace: peoplemesh-quickstart
+rules:
+  # Core resources
+  - apiGroups: [""]
+    resources: ["pods", "services", "secrets", "configmaps", "persistentvolumeclaims"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+  # Workloads
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+  # Routes (OpenShift)
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+  # Keycloak CRs
+  - apiGroups: ["k8s.keycloak.org"]
+    resources: ["keycloaks", "keycloakrealmimports"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+  # Needed for health checks and verification
+  - apiGroups: [""]
+    resources: ["pods/log", "pods/status"]
+    verbs: ["get", "list"]
+
+  # Needed to check operator CSV
+  - apiGroups: ["operators.coreos.com"]
+    resources: ["clusterserviceversions"]
+    verbs: ["get", "list"]
+
+---
+# RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: quickstart-installer
+  namespace: peoplemesh-quickstart
+subjects:
+  - kind: ServiceAccount
+    name: quickstart-installer
+    namespace: peoplemesh-quickstart
+roleRef:
+  kind: Role
+  name: quickstart-installer
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ClusterRole for cluster-wide checks (OpenShift version, nodes, storage classes)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: quickstart-installer-cluster-reader
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list"]
+
+  - apiGroups: ["config.openshift.io"]
+    resources: ["clusterversions"]
+    verbs: ["get", "list"]
+
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list"]
+
+---
+# ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: quickstart-installer-cluster-reader-peoplemesh
+subjects:
+  - kind: ServiceAccount
+    name: quickstart-installer
+    namespace: peoplemesh-quickstart
+roleRef:
+  kind: ClusterRole
+  name: quickstart-installer-cluster-reader
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Job that runs the installer
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: quickstart-install-peoplemesh
+  namespace: peoplemesh-quickstart
+  labels:
+    app: peoplemesh-quickstart
+    component: installer
+    managed-by: project-navigator
+spec:
+  # Don't retry on failure - let Navigator handle retries
+  backoffLimit: 0
+
+  # Clean up completed jobs after 1 hour (Navigator has already captured logs)
+  ttlSecondsAfterFinished: 3600
+
+  template:
+    metadata:
+      labels:
+        app: peoplemesh-quickstart
+        component: installer
+    spec:
+      serviceAccountName: quickstart-installer
+      restartPolicy: Never
+
+      containers:
+        - name: installer
+          image: ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+          imagePullPolicy: Always
+
+          env:
+            # Required: Action to perform
+            - name: ACTION
+              value: "install"
+
+            # Required: Target namespace
+            - name: TARGET_NAMESPACE
+              value: "peoplemesh-quickstart"
+
+            # Required: Install mode
+            - name: INSTALL_MODE
+              value: "demo"  # or "production"
+
+            # Optional: GPU configuration (from user input via Navigator)
+            - name: PARAM_OLLAMA_GPU_ENABLED
+              value: "false"
+
+            - name: PARAM_DOCLING_GPU_ENABLED
+              value: "false"
+
+            # Optional: LLM configuration
+            - name: PARAM_PEOPLEMESH_LLM_MODE
+              value: "local"  # or "external"
+
+            # Optional: External LLM (only if mode=external)
+            # - name: PARAM_PEOPLEMESH_LLM_EXTERNAL_APIKEY
+            #   value: "sk-..."
+            # - name: PARAM_PEOPLEMESH_LLM_EXTERNAL_BASEURL
+            #   value: "https://api.openai.com/v1"
+            # - name: PARAM_PEOPLEMESH_LLM_EXTERNAL_CHATMODEL
+            #   value: "gpt-4o-mini"
+
+            # Optional: Organization branding
+            # - name: PARAM_PEOPLEMESH_ORGANIZATION_NAME
+            #   value: "Acme Corporation"
+            # - name: PARAM_PEOPLEMESH_ORGANIZATION_CONTACTEMAIL
+            #   value: "admin@acme.com"
+
+            # Optional: OAuth providers
+            # - name: PARAM_PEOPLEMESH_OIDC_GOOGLE_CLIENTID
+            #   value: "..."
+            # - name: PARAM_PEOPLEMESH_OIDC_GOOGLE_CLIENTSECRET
+            #   value: "..."
+            # - name: PARAM_PEOPLEMESH_OIDC_MICROSOFT_CLIENTID
+            #   value: "..."
+            # - name: PARAM_PEOPLEMESH_OIDC_MICROSOFT_CLIENTSECRET
+            #   value: "..."
+
+            # Note: Secrets (passwords, keys) are auto-generated by installer if not provided
+            # Navigator typically doesn't pass these - lets installer generate them
+
+          # Resource limits for the installer job itself (not the quickstart)
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# Example: Upgrade Job
+# Navigator would submit this to upgrade from 0.9.0 to 1.0.0
+# apiVersion: batch/v1
+# kind: Job
+# metadata:
+#   name: quickstart-upgrade-peoplemesh-1-0-0
+#   namespace: peoplemesh-quickstart
+# spec:
+#   backoffLimit: 0
+#   template:
+#     spec:
+#       serviceAccountName: quickstart-installer
+#       restartPolicy: Never
+#       containers:
+#         - name: installer
+#           image: ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+#           env:
+#             - name: ACTION
+#               value: "upgrade"
+#             - name: TARGET_NAMESPACE
+#               value: "peoplemesh-quickstart"
+#             - name: SOURCE_VERSION
+#               value: "0.9.0"
+#             - name: TARGET_VERSION
+#               value: "1.0.0"
+
+---
+# Example: Uninstall Job (delete all data)
+# Navigator would submit this when user requests complete removal
+# apiVersion: batch/v1
+# kind: Job
+# metadata:
+#   name: quickstart-uninstall-peoplemesh
+#   namespace: peoplemesh-quickstart
+# spec:
+#   backoffLimit: 0
+#   template:
+#     spec:
+#       serviceAccountName: quickstart-installer
+#       restartPolicy: Never
+#       containers:
+#         - name: installer
+#           image: ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+#           env:
+#             - name: ACTION
+#               value: "uninstall-delete-all"  # or "uninstall-keep-data"
+#             - name: TARGET_NAMESPACE
+#               value: "peoplemesh-quickstart"
+
+---
+# How Navigator Uses This Job
+# ==============================
+#
+# 1. User Request (via chat):
+#    User: "Deploy peoplemesh with GPU acceleration"
+#
+# 2. Navigator Discovery:
+#    - Fetches manifest from registry
+#    - Identifies this is the peoplemesh quickstart
+#    - Reads prerequisites, parameters, deployment config
+#
+# 3. Navigator Configuration:
+#    - Asks user for required parameters (or uses defaults)
+#    - Asks: "Enable GPU acceleration? (requires NVIDIA GPU Operator)"
+#    - User: "Yes"
+#    - Sets PARAM_OLLAMA_GPU_ENABLED=true, PARAM_DOCLING_GPU_ENABLED=true
+#
+# 4. Navigator Deployment:
+#    - Creates namespace: peoplemesh-quickstart
+#    - Creates ServiceAccount + RBAC (from manifest.deployment.installer.serviceAccount)
+#    - Creates Job with installer image
+#    - Passes all parameters as environment variables
+#
+# 5. Navigator Monitoring:
+#    - Streams job logs: oc logs -f job/quickstart-install-peoplemesh -n peoplemesh-quickstart
+#    - Parses JSON status updates:
+#      {"status":"running","phase":"validating","message":"Checking prerequisites..."}
+#      -> Navigator: "Validating prerequisites..."
+#
+#      {"status":"running","phase":"deploying","message":"Installing Helm chart..."}
+#      -> Navigator: "Installing components (this may take 10-15 minutes)..."
+#
+#      {"status":"running","phase":"verifying","message":"Waiting for pods... (4/6 ready)"}
+#      -> Navigator: "Waiting for pods to be ready (4 of 6 ready)..."
+#
+#      {"status":"success","endpoints":[{"name":"main","url":"https://peoplemesh.apps.example.com"}]}
+#      -> Navigator: "Deployment complete! Access at https://peoplemesh.apps.example.com
+#                     Login with: testuser@example.com / [password from config]"
+#
+# 6. Error Handling:
+#    If job exits with code 2 (prerequisites failed):
+#      {"status":"prerequisites_failed","missing":["NVIDIA GPU Operator"]}
+#      -> Navigator: "Cannot deploy: NVIDIA GPU Operator is required but not installed.
+#                     Would you like to deploy without GPU acceleration instead?"
+#
+#    If job exits with code 1 (general failure):
+#      {"status":"error","message":"Helm installation failed"}
+#      -> Navigator: "Deployment failed: Helm installation failed. Check logs for details."
