@@ -1,115 +1,87 @@
 # Example Kubernetes Job that Project Navigator would submit
 # to deploy the Peoplemesh quickstart using the installer container
 #
-# This demonstrates how Navigator orchestrates quickstart deployment:
-# 1. Creates a ServiceAccount with required RBAC permissions
-# 2. Creates a Job that runs the installer container
-# 3. Passes all configuration as environment variables
-# 4. Monitors job logs for JSON status updates
-# 5. Reports progress to user via chat interface
+# SIMPLIFIED APPROACH:
+# Navigator runs with its own ServiceAccount that has permissions to deploy quickstarts.
+# Installer Jobs inherit these permissions - no per-quickstart RBAC needed.
+#
+# This is similar to:
+# - How you deploy with `oc` - you use your login context
+# - How Operators work - they create resources using their own ServiceAccount
+#
+# Navigator orchestration flow:
+# 1. Reads manifest's deployment.installer.requiredPermissions section
+# 2. Validates it has the required permissions
+# 3. Creates Job (uses Navigator's ServiceAccount or default SA)
+# 4. Streams job logs for real-time progress updates
+# 5. Parses JSON status and reports to user via chat interface
+#
+# NOTE: The ServiceAccount/RBAC resources below are for reference only.
+# They would be created ONCE when Navigator is installed, not per quickstart.
 
 ---
-# ServiceAccount for the installer job
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: quickstart-installer
-  namespace: peoplemesh-quickstart
+# Reference: Navigator's ServiceAccount (created at Navigator installation)
+# This is shared across all quickstart deployments
+#
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   name: project-navigator
+#   namespace: openshift-navigator
+#
+# ---
+# Reference: Navigator's Role (created at Navigator installation)
+# Grants permissions to deploy quickstarts in target namespaces
+#
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRole
+# metadata:
+#   name: project-navigator-quickstart-deployer
+# rules:
+#   # Core resources
+#   - apiGroups: [""]
+#     resources: ["pods", "services", "secrets", "configmaps", "persistentvolumeclaims", "namespaces"]
+#     verbs: ["get", "list", "create", "update", "patch", "delete"]
+#
+#   # Workloads
+#   - apiGroups: ["apps"]
+#     resources: ["deployments", "statefulsets"]
+#     verbs: ["get", "list", "create", "update", "patch", "delete"]
+#
+#   # Jobs (to create installer jobs)
+#   - apiGroups: ["batch"]
+#     resources: ["jobs"]
+#     verbs: ["get", "list", "create", "update", "patch", "delete"]
+#
+#   # Routes (OpenShift)
+#   - apiGroups: ["route.openshift.io"]
+#     resources: ["routes"]
+#     verbs: ["get", "list", "create", "update", "patch", "delete"]
+#
+#   # Keycloak CRs
+#   - apiGroups: ["k8s.keycloak.org"]
+#     resources: ["keycloaks", "keycloakrealmimports"]
+#     verbs: ["get", "list", "create", "update", "patch", "delete"]
+#
+#   # Cluster-scoped read for validation
+#   - apiGroups: [""]
+#     resources: ["nodes"]
+#     verbs: ["get", "list"]
+#   - apiGroups: ["storage.k8s.io"]
+#     resources: ["storageclasses"]
+#     verbs: ["get", "list"]
+#   - apiGroups: ["config.openshift.io"]
+#     resources: ["clusterversions"]
+#     verbs: ["get", "list"]
+#   - apiGroups: ["apiextensions.k8s.io"]
+#     resources: ["customresourcedefinitions"]
+#     verbs: ["get", "list"]
+#   - apiGroups: ["operators.coreos.com"]
+#     resources: ["clusterserviceversions"]
+#     verbs: ["get", "list"]
 
 ---
-# Role with permissions needed to deploy the quickstart
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: quickstart-installer
-  namespace: peoplemesh-quickstart
-rules:
-  # Core resources
-  - apiGroups: [""]
-    resources: ["pods", "services", "secrets", "configmaps", "persistentvolumeclaims"]
-    verbs: ["get", "list", "create", "update", "patch", "delete"]
-
-  # Workloads
-  - apiGroups: ["apps"]
-    resources: ["deployments", "statefulsets"]
-    verbs: ["get", "list", "create", "update", "patch", "delete"]
-
-  # Routes (OpenShift)
-  - apiGroups: ["route.openshift.io"]
-    resources: ["routes"]
-    verbs: ["get", "list", "create", "update", "patch", "delete"]
-
-  # Keycloak CRs
-  - apiGroups: ["k8s.keycloak.org"]
-    resources: ["keycloaks", "keycloakrealmimports"]
-    verbs: ["get", "list", "create", "update", "patch", "delete"]
-
-  # Needed for health checks and verification
-  - apiGroups: [""]
-    resources: ["pods/log", "pods/status"]
-    verbs: ["get", "list"]
-
-  # Needed to check operator CSV
-  - apiGroups: ["operators.coreos.com"]
-    resources: ["clusterserviceversions"]
-    verbs: ["get", "list"]
-
----
-# RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: quickstart-installer
-  namespace: peoplemesh-quickstart
-subjects:
-  - kind: ServiceAccount
-    name: quickstart-installer
-    namespace: peoplemesh-quickstart
-roleRef:
-  kind: Role
-  name: quickstart-installer
-  apiGroup: rbac.authorization.k8s.io
-
----
-# ClusterRole for cluster-wide checks (OpenShift version, nodes, storage classes)
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: quickstart-installer-cluster-reader
-rules:
-  - apiGroups: [""]
-    resources: ["nodes"]
-    verbs: ["get", "list"]
-
-  - apiGroups: ["storage.k8s.io"]
-    resources: ["storageclasses"]
-    verbs: ["get", "list"]
-
-  - apiGroups: ["config.openshift.io"]
-    resources: ["clusterversions"]
-    verbs: ["get", "list"]
-
-  - apiGroups: ["apiextensions.k8s.io"]
-    resources: ["customresourcedefinitions"]
-    verbs: ["get", "list"]
-
----
-# ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: quickstart-installer-cluster-reader-peoplemesh
-subjects:
-  - kind: ServiceAccount
-    name: quickstart-installer
-    namespace: peoplemesh-quickstart
-roleRef:
-  kind: ClusterRole
-  name: quickstart-installer-cluster-reader
-  apiGroup: rbac.authorization.k8s.io
-
----
-# Job that runs the installer
+# Job that Navigator creates to run the installer
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -132,7 +104,9 @@ spec:
         app: peoplemesh-quickstart
         component: installer
     spec:
-      serviceAccountName: quickstart-installer
+      # Uses default ServiceAccount in namespace, which has permissions
+      # granted by Navigator (or uses Navigator's SA directly)
+      # No per-quickstart ServiceAccount needed
       restartPolicy: Never
 
       containers:

@@ -5,52 +5,81 @@
 - OpenShift cluster access with cluster-admin or namespace-admin permissions
 - `oc` CLI tool installed and authenticated
 - `helm` CLI tool installed (version 3.x)
+- **Red Hat build of Keycloak Operator** installed in target namespace (see Quick Start in README.md)
 
-## Required Secrets
+## Secrets Management
 
-This installation requires **7 secrets** to be provided explicitly. No secrets are auto-generated or hardcoded.
+**All secrets must be provided** for security. Generate them with `openssl rand -base64 24`.
 
-### Generate All Secrets at Once
+The following secrets are required during installation:
+- Keycloak database password
+- PgVector database password
+- Keycloak client secret
+- Session encryption secret
+- OAuth state secret
+- Maintenance API key
+- Test user password
 
-```bash
-# Generate all required secrets
-export KC_DB_PASSWORD=$(openssl rand -base64 24 | tr -d "=+/" | cut -c1-24)
-export PG_DB_PASSWORD=$(openssl rand -base64 24 | tr -d "=+/" | cut -c1-24)
-export CLIENT_SECRET=$(openssl rand -hex 32)
-export SESSION_SECRET=$(openssl rand -hex 32)
-export OAUTH_SECRET=$(openssl rand -hex 32)
-export MAINT_KEY=$(openssl rand -hex 32)
-export TEST_USER_PASSWORD=$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-16)
-
-# Display for reference (save these if you need to reinstall!)
-cat <<EOF
-
-================================
-Generated Secrets (save these!)
-================================
-Keycloak DB Password:    $KC_DB_PASSWORD
-Pgvector DB Password:    $PG_DB_PASSWORD
-Keycloak Client Secret:  $CLIENT_SECRET
-Session Secret:          $SESSION_SECRET
-OAuth State Secret:      $OAUTH_SECRET
-Maintenance API Key:     $MAINT_KEY
-Test User Password:      $TEST_USER_PASSWORD
-================================
-
-EOF
-```
+The Keycloak issuer URL is auto-detected from your cluster - you don't need to provide it.
 
 ## Installation
 
-### Create Namespace
+### Create Namespace and Install Operator
+
+**IMPORTANT:** The Keycloak Operator must be installed in the target namespace before deploying:
 
 ```bash
+# Create the namespace
 oc new-project peoplemesh-quickstart
+
+# Install the Red Hat build of Keycloak Operator from OperatorHub
+# 1. OpenShift Console → OperatorHub
+# 2. Search for "Red Hat build of Keycloak"
+# 3. Click "Install"
+# 4. Installation Mode: "A specific namespace on the cluster"
+# 5. Installed Namespace: Select "peoplemesh-quickstart"
+# 6. Wait for "Succeeded" status
 ```
 
-### Install with Helm
+### Basic Installation (Recommended: Using install.sh)
+
+The easiest way to install is using the provided script, which automatically generates all secrets:
 
 ```bash
+./install.sh \
+  --namespace peoplemesh-quickstart \
+  --test-password YourSecurePassword
+```
+
+**Options:**
+- `--namespace <name>` - Target namespace (required)
+- `--test-password <password>` - Test user password (required)
+- `--ollama-gpu <true|false>` - Enable GPU for Ollama (default: false)
+- `--docling-gpu <true|false>` - Enable GPU for Docling (default: false)
+
+**Example with GPU:**
+```bash
+./install.sh \
+  --namespace peoplemesh-quickstart \
+  --test-password YourSecurePassword \
+  --ollama-gpu true \
+  --docling-gpu true
+```
+
+### Manual Helm Installation
+
+If you prefer to use Helm directly without the script:
+
+```bash
+# Generate secure secrets
+KC_DB_PASSWORD=$(openssl rand -base64 24)
+PG_DB_PASSWORD=$(openssl rand -base64 24)
+CLIENT_SECRET=$(openssl rand -base64 24)
+SESSION_SECRET=$(openssl rand -base64 24)
+OAUTH_SECRET=$(openssl rand -base64 24)
+MAINT_KEY=$(openssl rand -base64 24)
+
+# Deploy
 helm install peoplemesh . \
   --namespace peoplemesh-quickstart \
   --timeout 15m \
@@ -61,8 +90,19 @@ helm install peoplemesh . \
   --set peoplemesh.security.sessionSecret="$SESSION_SECRET" \
   --set peoplemesh.security.oauthStateSecret="$OAUTH_SECRET" \
   --set peoplemesh.security.maintenanceApiKey="$MAINT_KEY" \
-  --set keycloak.realm.testUser.password="$TEST_USER_PASSWORD"
+  --set keycloak.realm.testUser.password="YourSecurePassword"
+
+# Clear secrets from memory
+KC_DB_PASSWORD=""
+PG_DB_PASSWORD=""
+CLIENT_SECRET=""
+SESSION_SECRET=""
+OAUTH_SECRET=""
+MAINT_KEY=""
 ```
+
+**Note:** Secrets are generated locally (not exported to environment) for security. The Keycloak client secret is automatically synchronized to Peoplemesh via a post-install job. The Keycloak issuer URL is auto-detected from your cluster.
+
 
 ### What Each Secret Does
 
@@ -71,32 +111,50 @@ helm install peoplemesh . \
 | **keycloak.postgres.password** | Keycloak's PostgreSQL database password | Keycloak → Postgres |
 | **pgvector.postgres.password** | Peoplemesh's PostgreSQL database password | Peoplemesh → Postgres |
 | **keycloak.realm.client.clientSecret** | OIDC client secret shared between Keycloak and Peoplemesh | Keycloak ↔ Peoplemesh |
-| **peoplemesh.security.sessionSecret** | Encrypts browser session cookies (prevents cookie issue!) | Peoplemesh |
+| **peoplemesh.security.sessionSecret** | Encrypts browser session cookies | Peoplemesh |
 | **peoplemesh.security.oauthStateSecret** | OAuth CSRF protection during login flow | Peoplemesh |
 | **peoplemesh.security.maintenanceApiKey** | API key for maintenance endpoints | Peoplemesh |
-| **keycloak.realm.testUser.password** | Password for demo test user (username: testuser) | Keycloak Test User |
+| **keycloak.realm.testUser.password** | Password for demo test user | Keycloak Test User |
 
 ## Uninstallation
 
-The quickstart includes automatic cleanup of PVCs (database volumes):
+### Using uninstall.sh (Recommended)
+
+The easiest way to uninstall:
+
+```bash
+./uninstall.sh --namespace peoplemesh-quickstart
+```
+
+This will:
+- ✅ Remove the Helm release
+- ✅ Remove all deployments, services, routes
+- ✅ Remove all secrets
+- ✅ Remove all PVCs (database data is deleted)
+- ℹ️  Namespace remains (see script output for delete command)
+
+### Manual Helm Uninstall
 
 ```bash
 helm uninstall peoplemesh --namespace peoplemesh-quickstart
 ```
 
-This will:
-- ✅ Remove all deployments, services, routes
-- ✅ Remove all secrets
-- ✅ Remove all PVCs (database data is deleted)
-
 **Complete cleanup** - ready for a fresh install!
 
 ## Reinstallation
 
-To reinstall, use **the exact same secrets** as the original installation:
+If you need to preserve secrets across reinstalls, save them before uninstalling and reuse them:
 
 ```bash
-# Reuse the same secret values you generated earlier
+# Save your current secret values
+export KC_DB_PASSWORD="..." 
+export PG_DB_PASSWORD="..."
+export CLIENT_SECRET="..."
+export SESSION_SECRET="..."
+export OAUTH_SECRET="..."
+export MAINT_KEY="..."
+
+# Reuse the same secret values
 helm install peoplemesh . \
   --namespace peoplemesh-quickstart \
   --timeout 15m \
@@ -107,12 +165,11 @@ helm install peoplemesh . \
   --set peoplemesh.security.sessionSecret="$SESSION_SECRET" \
   --set peoplemesh.security.oauthStateSecret="$OAUTH_SECRET" \
   --set peoplemesh.security.maintenanceApiKey="$MAINT_KEY" \
-  --set keycloak.realm.testUser.password="$TEST_USER_PASSWORD"
+  --set keycloak.realm.testUser.password="YourSecurePassword"
 ```
 
 **Why reuse the same secrets?**
 - ✅ Browser sessions remain valid (no cookie clearing needed!)
-- ✅ No "No OIDC provider configured" errors
 - ✅ Consistent authentication experience
 
 **Note:** Database data is still lost because PVCs are deleted on uninstall. This is intentional for the quickstart to ensure clean state.
@@ -214,9 +271,9 @@ Because you're using the same `sessionSecret` across reinstalls:
 
 ### "Required value" errors during install
 
-**Cause:** One or more secrets not provided.
+**Cause:** One or more required secrets was not provided.
 
-**Solution:** Ensure all 6 secrets are provided via `--set` or values file.
+**Solution:** Ensure you provide all required secrets with `openssl rand -base64 24`. See the installation commands above for the complete list.
 
 ### Pods not starting
 

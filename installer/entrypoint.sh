@@ -5,7 +5,7 @@ set -euo pipefail
 source /installer/lib/prerequisites.sh
 source /installer/lib/deploy.sh
 source /installer/lib/upgrade.sh
-source /installer/lib/verify.sh
+source /installer/lib/status.sh
 source /installer/lib/cleanup.sh
 
 # Logging functions for structured JSON output
@@ -34,14 +34,14 @@ log_prerequisites_failed() {
 }
 
 # Validate required environment variables
-: "${ACTION:?ACTION must be set (verify|install|upgrade|uninstall-delete-all|uninstall-keep-data)}"
+: "${ACTION:?ACTION must be set (validate|install|upgrade|uninstall-delete-all|uninstall-keep-data)}"
 : "${TARGET_NAMESPACE:?TARGET_NAMESPACE must be set}"
 : "${INSTALL_MODE:=demo}"  # Default to demo mode if not specified
 
 # Main logic based on ACTION
 case "$ACTION" in
-  verify)
-    log_status "running" "validating" "Checking prerequisites..."
+  validate)
+    log_status "running" "validating" "Validating prerequisites..."
     check_prerequisites || exit 2
     log_status "success" "validating" "All prerequisites satisfied"
     log_success "[]"
@@ -54,8 +54,8 @@ case "$ACTION" in
     log_status "running" "deploying" "Installing in $INSTALL_MODE mode..."
     deploy_quickstart
 
-    log_status "running" "verifying" "Waiting for pods to be ready..."
-    verify_deployment
+    log_status "running" "checking-status" "Waiting for pods to be ready..."
+    check_deployment_status
 
     log_status "running" "finalizing" "Retrieving endpoints..."
     ENDPOINTS=$(get_endpoints)
@@ -91,6 +91,6 @@ case "$ACTION" in
     ;;
 
   *)
-    log_error "Invalid ACTION: $ACTION (must be verify|install|upgrade|uninstall-delete-all|uninstall-keep-data)"
+    log_error "Invalid ACTION: $ACTION (must be validate|install|upgrade|uninstall-delete-all|uninstall-keep-data)"
     ;;
 esac

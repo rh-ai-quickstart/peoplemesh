@@ -49,15 +49,93 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Auto-generate secrets with lookup to preserve on upgrade
+Pattern: Check if secret exists -> reuse it, otherwise generate new or use provided value
+*/}}
+
+{{/*
+Generate Keycloak PostgreSQL password
+*/}}
+{{- define "peoplemesh-umbrella.keycloakPostgresPassword" -}}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace "keycloak-postgres" -}}
+{{- if $secret -}}
+  {{- index $secret.data "POSTGRES_PASSWORD" | b64dec -}}
+{{- else if .Values.keycloak.postgres.password -}}
+  {{- .Values.keycloak.postgres.password -}}
+{{- else -}}
+  {{- randAlphaNum 24 -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Generate PgVector PostgreSQL password
+*/}}
+{{- define "peoplemesh-umbrella.pgvectorPostgresPassword" -}}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace "pgvector-database" -}}
+{{- if $secret -}}
+  {{- index $secret.data "DATABASE_PASSWORD" | b64dec -}}
+{{- else if .Values.pgvector.postgres.password -}}
+  {{- .Values.pgvector.postgres.password -}}
+{{- else -}}
+  {{- randAlphaNum 24 -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Generate Keycloak client secret
 */}}
 {{- define "peoplemesh-umbrella.keycloakClientSecret" -}}
-{{- if .Values.keycloak.realm.client.clientSecret }}
-{{- .Values.keycloak.realm.client.clientSecret }}
-{{- else }}
-{{- randAlphaNum 32 }}
-{{- end }}
-{{- end }}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace "peoplemesh-oidc" -}}
+{{- if $secret -}}
+  {{- index $secret.data "KEYCLOAK_CLIENT_SECRET" | b64dec -}}
+{{- else if .Values.keycloak.realm.client.clientSecret -}}
+  {{- .Values.keycloak.realm.client.clientSecret -}}
+{{- else -}}
+  {{- randAlphaNum 24 -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Generate Peoplemesh session secret
+*/}}
+{{- define "peoplemesh-umbrella.sessionSecret" -}}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace "peoplemesh-security" -}}
+{{- if $secret -}}
+  {{- index $secret.data "SESSION_SECRET" | b64dec -}}
+{{- else if .Values.peoplemesh.security.sessionSecret -}}
+  {{- .Values.peoplemesh.security.sessionSecret -}}
+{{- else -}}
+  {{- randAlphaNum 24 -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Generate Peoplemesh OAuth state secret
+*/}}
+{{- define "peoplemesh-umbrella.oauthStateSecret" -}}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace "peoplemesh-security" -}}
+{{- if $secret -}}
+  {{- index $secret.data "OAUTH_STATE_SECRET" | b64dec -}}
+{{- else if .Values.peoplemesh.security.oauthStateSecret -}}
+  {{- .Values.peoplemesh.security.oauthStateSecret -}}
+{{- else -}}
+  {{- randAlphaNum 24 -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Generate Peoplemesh maintenance API key
+*/}}
+{{- define "peoplemesh-umbrella.maintenanceApiKey" -}}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace "peoplemesh-security" -}}
+{{- if $secret -}}
+  {{- index $secret.data "MAINTENANCE_API_KEY" | b64dec -}}
+{{- else if .Values.peoplemesh.security.maintenanceApiKey -}}
+  {{- .Values.peoplemesh.security.maintenanceApiKey -}}
+{{- else -}}
+  {{- randAlphaNum 24 -}}
+{{- end -}}
+{{- end -}}
 
 {{/*
 Get cluster domain from OpenShift console route

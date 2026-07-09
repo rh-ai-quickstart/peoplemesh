@@ -30,9 +30,9 @@ upgrade_quickstart() {
     --timeout 15m \
     --wait || log_error "Helm upgrade failed"
 
-  # Verify upgrade
-  log_status "running" "upgrading" "Verifying upgraded deployment..."
-  verify_deployment
+  # Check upgrade status
+  log_status "running" "upgrading" "Checking upgraded deployment status..."
+  check_deployment_status
 
   log_status "running" "upgrading" "Upgrade complete: $SOURCE_VERSION → $TARGET_VERSION"
 }

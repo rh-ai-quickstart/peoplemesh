@@ -12,7 +12,7 @@ Learn to build semantic search that finds talent by meaning, not keywords, using
   - [Software Requirements](#software-requirements)
 - [Deploy](#deploy)
   - [Quick Start](#quick-start)
-  - [GPU Acceleration (Optional)](#gpu-acceleration-optional)
+  - [GPU Acceleration (Optional but highly recommended)](#gpu-acceleration-optional)
   - [Verify Deployment](#verify-deployment)
   - [Delete](#delete)
 - [Using the Application](#using-the-application)
@@ -151,21 +151,27 @@ oc get csv -n peoplemesh-quickstart | grep rhbk-operator
 
 ### Quick Start
 
-**1. Clone the repository:**
+**1. Install Keycloak Operator:**
+
+The **Red Hat build of Keycloak Operator** must be installed in the target namespace **before** deploying.
+
+```bash
+# Create the namespace
+oc new-project peoplemesh-quickstart
+
+# Install the operator from OperatorHub:
+# 1. OpenShift Console → OperatorHub
+# 2. Search for "Red Hat build of Keycloak"
+# 3. Click "Install"
+# 4. Installation Mode: "A specific namespace on the cluster"
+# 5. Installed Namespace: Select "peoplemesh-quickstart"
+# 6. Click "Install" and wait for "Succeeded" status
+```
+
+**2. Clone the repository:**
 ```bash
 git clone https://github.com/rh-ai-quickstart/peoplemesh-quickstart.git
 cd peoplemesh-quickstart/peoplemesh-umbrella
-```
-
-**2. Generate secure secrets:**
-```bash
-export KC_DB_PASSWORD=$(openssl rand -base64 24)
-export PG_DB_PASSWORD=$(openssl rand -base64 24)
-export CLIENT_SECRET=$(openssl rand -base64 24)
-export SESSION_SECRET=$(openssl rand -base64 24)
-export OAUTH_SECRET=$(openssl rand -base64 24)
-export MAINT_KEY=$(openssl rand -base64 24)
-export TEST_USER_PASSWORD="SecurePassword1"
 ```
 
 **3. Build helm dependencies:**
@@ -175,21 +181,32 @@ helm dependency update
 
 **Note:** If you make any changes to the helm charts (e.g., updating values in `charts/keycloak/`, `charts/pgvector/`, etc.), you **must** run `helm dependency update` again before deploying. This repackages the updated charts into the umbrella chart.
 
-**4. Deploy (CPU-only mode):**
+**4. Deploy:**
 ```bash
-helm install peoplemesh . \
+# Simple installation - all secrets auto-generated
+./install.sh \
   --namespace peoplemesh-quickstart \
-  --create-namespace \
-  --timeout 15m \
-  --wait \
-  --set keycloak.postgres.password="$KC_DB_PASSWORD" \
-  --set pgvector.postgres.password="$PG_DB_PASSWORD" \
-  --set keycloak.realm.client.clientSecret="$CLIENT_SECRET" \
-  --set peoplemesh.security.sessionSecret="$SESSION_SECRET" \
-  --set peoplemesh.security.oauthStateSecret="$OAUTH_SECRET" \
-  --set peoplemesh.security.maintenanceApiKey="$MAINT_KEY" \
-  --set keycloak.realm.testUser.password="$TEST_USER_PASSWORD"
+  --test-password YourSecurePassword
 ```
+
+The script automatically generates all required secrets securely. Only the namespace and test user password need to be provided.
+
+**With GPU acceleration:**
+```bash
+./install.sh \
+  --namespace peoplemesh-quickstart \
+  --test-password YourSecurePassword \
+  --ollama-gpu true \
+  --docling-gpu true
+```
+
+**Full options:**
+```bash
+./install.sh --help
+```
+
+**Manual Helm installation:**
+If you prefer to use Helm directly without the script, see [INSTALL.md](INSTALL.md) for the complete Helm command with all parameters.
 
 **5. Get the application URL:**
 ```bash
@@ -202,33 +219,13 @@ echo "Application URL: https://$(oc get route peoplemesh -n peoplemesh-quickstar
 - Choose "Continue with Keycloak"
 - Login with:
   - Username: `testuser@example.com`
-  - Password: `$TEST_USER_PASSWORD`
+  - Password: (the password you set during installation)
 
 **Deployment time:** ~10-15 minutes (models and images download on first install)
 
-### GPU Acceleration (Optional)
-
-For **10-20x faster** LLM inference and document processing, enable GPU:
-
-```bash
-helm install peoplemesh . \
-  --namespace peoplemesh-quickstart \
-  --create-namespace \
-  --timeout 15m \
-  --wait \
-  --set ollama.gpu.enabled=true \
-  --set docling.gpu.enabled=true \
-  --set keycloak.postgres.password="$KC_DB_PASSWORD" \
-  --set pgvector.postgres.password="$PG_DB_PASSWORD" \
-  --set keycloak.realm.client.clientSecret="$CLIENT_SECRET" \
-  --set peoplemesh.security.sessionSecret="$SESSION_SECRET" \
-  --set peoplemesh.security.oauthStateSecret="$OAUTH_SECRET" \
-  --set peoplemesh.security.maintenanceApiKey="$MAINT_KEY" \
-  --set keycloak.realm.testUser.password="$TEST_USER_PASSWORD"
-```
 
 **GPU Requirements:**
-- At least 1 NVIDIA GPU available in cluster
+- At least 1 NVIDIA GPU available in cluster (2 if you are accelerating both docling and embedding generation to drive recommendations)
 - NVIDIA GPU Operator installed
 - GPU tolerations pre-configured (works with common taints like `nvidia.com/gpu`, `g5-gpu`)
 
@@ -271,10 +268,18 @@ oc describe pod ollama-0 -n peoplemesh-quickstart | grep nvidia.com/gpu
 To completely remove the deployment and all data:
 
 ```bash
+# Simple uninstall
+./uninstall.sh --namespace peoplemesh-quickstart
+```
+
+This removes the Helm release and all components. The namespace itself remains (see note in uninstall output to delete it completely if desired).
+
+**Manual uninstall:**
+```bash
 # Uninstall the helm release
 helm uninstall peoplemesh -n peoplemesh-quickstart
 
-# Delete the namespace (removes all persistent volumes and data)
+# Optionally delete the namespace (removes all persistent volumes and data)
 oc delete namespace peoplemesh-quickstart
 ```
 
@@ -283,6 +288,10 @@ oc delete namespace peoplemesh-quickstart
 - Search history and analytics
 - Database contents
 - Keycloak users and configuration
+
+**Note on Reinstallation:** If you reinstall the quickstart after uninstalling, you may encounter login errors due to stale browser cookies. To resolve this:
+1. Clear your browser cookies for the Peoplemesh domain, OR
+2. Open the browser developer tools (F12) → Application/Storage → Cookies → Delete cookies starting with `peoplemesh`
 
 ## Using the Application
 
@@ -344,43 +353,13 @@ echo "Keycloak URL: https://$(oc get route keycloak -n peoplemesh-quickstart -o 
 
 ## Advanced Configuration
 
-### External LLM Provider
+For advanced configuration options including:
+- Custom organization branding
+- Additional OIDC providers (Google, Microsoft)
+- Storage and resource customization
+- Complete parameter reference
 
-Use OpenAI or another provider instead of local Ollama (no GPU required):
-
-```bash
-helm install peoplemesh . \
-  --namespace peoplemesh-quickstart \
-  --create-namespace \
-  --set ollama.enabled=false \
-  --set peoplemesh.llm.mode=external \
-  --set peoplemesh.llm.external.baseUrl="https://api.openai.com/v1" \
-  --set peoplemesh.llm.external.apiKey="sk-your-key-here" \
-  --set peoplemesh.llm.external.chatModel="gpt-4o-mini" \
-  # ... other required secrets
-```
-
-### Custom Organization Branding
-
-```bash
---set peoplemesh.organization.name="Acme Corporation" \
---set peoplemesh.organization.contactEmail="admin@acme.com" \
---set peoplemesh.organization.dataLocation="United States" \
---set peoplemesh.organization.governingLaw="State of California"
-```
-
-### Additional OIDC Providers
-
-Enable Google or Microsoft authentication alongside Keycloak:
-
-```bash
---set peoplemesh.oidc.google.clientId="your-google-client-id" \
---set peoplemesh.oidc.google.clientSecret="your-google-secret" \
---set peoplemesh.oidc.microsoft.clientId="your-microsoft-client-id" \
---set peoplemesh.oidc.microsoft.clientSecret="your-microsoft-secret"
-```
-
-See [INSTALL.md](INSTALL.md) for complete configuration reference.
+See [INSTALL.md](INSTALL.md) for detailed configuration guide.
 
 ## Reference
 

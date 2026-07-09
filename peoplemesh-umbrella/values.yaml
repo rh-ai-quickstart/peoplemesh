@@ -2,9 +2,9 @@
 # Single command deployment with Keycloak authentication
 #
 # All components deploy to the same namespace for simplified management
-# Keycloak client secret is auto-generated and shared between components
+# All secrets must be provided for security (generate with: openssl rand -base64 24)
 # Cluster domain auto-detected from OpenShift console route
-# No manual configuration steps required - deploy and login!
+# Keycloak issuer URL is auto-detected - no manual configuration needed!
 
 # Keycloak authentication server
 keycloak:
@@ -18,9 +18,8 @@ keycloak:
   postgres:
     user: keycloak
     # Database password - REQUIRED
-    # Use alphanumeric characters only to avoid JDBC escaping issues
-    # Example: --set keycloak.postgres.password=YourSecurePassword123
-    password: ""  # REQUIRED - no default value
+    # Provide with: --set keycloak.postgres.password="$(openssl rand -base64 24)"
+    password: ""  # REQUIRED - must be set during installation
     database: keycloak
     image:
       repository: quay.io/rh-aiservices-bu/postgresql-15-pgvector-c9s
@@ -72,10 +71,10 @@ keycloak:
     client:
       enabled: true
       clientId: peoplemesh
-      # Client secret - REQUIRED
-      # This secret is shared between Keycloak and Peoplemesh for OIDC authentication
-      # Example: --set keycloak.realm.client.clientSecret=YourClientSecret123
-      clientSecret: ""  # REQUIRED - no default value
+      # Client secret - REQUIRED for security
+      # Generate with: openssl rand -base64 24
+      # Provide via: --set keycloak.realm.client.clientSecret=YourSecret
+      clientSecret: ""  # REQUIRED - must be set during installation
       name: "Peoplemesh Application"
       description: "Peoplemesh OIDC client"
       # Redirect URIs - wildcards will work for any cluster
@@ -93,7 +92,7 @@ keycloak:
       email: testuser@example.com
       firstName: Test
       lastName: User
-      password: ""  # REQUIRED - no default value
+      password: ""  # REQUIRED - must be set during installation
       emailVerified: true
 
 # PostgreSQL with pgvector extension
@@ -103,9 +102,8 @@ pgvector:
   postgres:
     userId: peoplemesh
     # Database password - REQUIRED
-    # Use alphanumeric characters only to avoid JDBC escaping issues
-    # Example: --set pgvector.postgres.password=YourDbPassword123
-    password: ""  # REQUIRED - no default value
+    # Provide with: --set pgvector.postgres.password="$(openssl rand -base64 24)"
+    password: ""  # REQUIRED - must be set during installation
     databaseName: peoplemesh
     resources:
       requests:
@@ -280,23 +278,25 @@ peoplemesh:
 
   # Security configuration
   security:
-    # Session and auth secrets - ALL REQUIRED
-    # sessionSecret: Used to encrypt browser session cookies (min 32 characters)
-    # oauthStateSecret: Used for OAuth CSRF protection (min 32 characters)
-    # maintenanceApiKey: API key for maintenance endpoints (min 32 characters)
-    # Example: --set peoplemesh.security.sessionSecret=YourSessionSecret123456789012
-    sessionSecret: ""  # REQUIRED - no default value
-    oauthStateSecret: ""  # REQUIRED - no default value
-    maintenanceApiKey: ""  # REQUIRED - no default value
+    # Session and auth secrets - REQUIRED
+    # sessionSecret: Used to encrypt browser session cookies
+    # oauthStateSecret: Used for OAuth CSRF protection
+    # maintenanceApiKey: API key for maintenance endpoints
+    # Generate with: openssl rand -base64 24
+    sessionSecret: ""  # REQUIRED - must be set during installation
+    oauthStateSecret: ""  # REQUIRED - must be set during installation
+    maintenanceApiKey: ""  # REQUIRED - must be set during installation
     corsOrigins: "*"  # Change to specific origins in production
 
-    # OIDC configuration - auto-configured from Keycloak
+    # OIDC configuration
+    # Client secret and issuer URL are automatically synchronized from Keycloak
+    # via a post-install job - no manual configuration needed
     oidc:
       keycloak:
         clientId: "peoplemesh"
-        # Client secret and issuer URL auto-configured from umbrella
-        clientSecret: ""  # Populated automatically
-        issuerUrl: ""  # Populated automatically
+        # Client secret: auto-synced from keycloak-client-secret after install
+        # Issuer URL: auto-detected from cluster domain
+        issuerUrl: ""  # Auto-detected if not provided
       google:
         clientId: "none"
         clientSecret: "none"

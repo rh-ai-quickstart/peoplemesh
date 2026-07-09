@@ -74,7 +74,7 @@ case "${1:-}" in
     ;;
 
   test)
-    info "Running prerequisite check (no installation)..."
+    info "Running prerequisite validation (no installation)..."
     echo ""
 
     if [[ ! -f "$HOME/.kube/config" ]]; then
@@ -82,14 +82,14 @@ case "${1:-}" in
     fi
 
     docker run --rm \
-      -e ACTION=verify \
+      -e ACTION=validate \
       -e TARGET_NAMESPACE=peoplemesh-test \
       -v "$HOME/.kube/config:/tmp/kubeconfig:ro" \
       -e KUBECONFIG=/tmp/kubeconfig \
       "${FULL_IMAGE}" || true
 
     echo ""
-    info "Prerequisite check complete! Check output above for results."
+    info "Prerequisite validation complete! Check output above for results."
     ;;
 
   install)
@@ -156,8 +156,8 @@ case "${1:-}" in
     # Just build, already done above
     echo "Next steps:"
     echo "  ./build.sh push          - Push to registry"
-    echo "  ./build.sh test          - Test prerequisite check (no install)"
-    echo "  ./build.sh install       - Test full installation (keeps data)"
+    echo "  ./build.sh test          - Validate prerequisites (no install)"
+    echo "  ./build.sh install       - Test full installation"
     echo "  ./build.sh uninstall     - Remove test installation (keep data)"
     echo "  ./build.sh uninstall-all - Remove test installation (delete all data)"
     ;;

@@ -10,10 +10,15 @@ Get the target namespace - use release namespace if values.namespace is empty
 {{- end }}
 
 {{/*
-Get the Keycloak client secret - REQUIRED, no defaults
+Get the Keycloak client secret - REQUIRED from user
 */}}
 {{- define "keycloak.clientSecret" -}}
-{{- required "keycloak.realm.client.clientSecret is required" .Values.realm.client.clientSecret }}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace "keycloak-client-secret" -}}
+{{- if $secret -}}
+  {{- index $secret.data "clientSecret" | b64dec -}}
+{{- else -}}
+  {{- required "keycloak.realm.client.clientSecret is required. Generate with: openssl rand -base64 24" .Values.realm.client.clientSecret -}}
+{{- end -}}
 {{- end }}
 
 {{/*
@@ -46,10 +51,15 @@ Construct Peoplemesh web origin with actual cluster domain
 {{- end }}
 
 {{/*
-Get PostgreSQL password - REQUIRED, no defaults
+Get PostgreSQL password - REQUIRED from user
 */}}
 {{- define "keycloak.postgresPassword" -}}
-{{- required "keycloak.postgres.password is required" .Values.postgres.password }}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace "keycloak-db-secret" -}}
+{{- if $secret -}}
+  {{- index $secret.data "password" | b64dec -}}
+{{- else -}}
+  {{- required "keycloak.postgres.password is required. Generate with: openssl rand -base64 24" .Values.postgres.password -}}
+{{- end -}}
 {{- end }}
 
 {{/*
