@@ -151,13 +151,14 @@ prerequisites:
       - "4.14"
       - "4.15"
 
-  # Required operators (must be installed before deployment)
+  # Required operators (automatically installed by quickstart)
   operators:
     - name: "Red Hat build of Keycloak Operator"
       namespace: "target"  # "target" means same namespace as quickstart, "cluster" means cluster-wide
-      minimumVersion: "24.0"
+      minimumVersion: "26.6.4-opr.1"
       required: true
-      installationHint: "Install from OperatorHub in the target namespace before deploying this quickstart"
+      autoInstalled: true
+      installationHint: "Automatically installed by quickstart installer (must be available in redhat-operators catalog)"
 
     - name: "NVIDIA GPU Operator"
       namespace: "cluster"
@@ -208,16 +209,14 @@ prerequisites:
 deployment:
   # Installer container image configuration
   installer:
-    image: "ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0"
+    image: "quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0"
     command: ["/installer/entrypoint.sh"]
 
     # Environment variables the installer expects
     requiredEnv:
       - "TARGET_NAMESPACE"
-      - "ACTION"  # validate | install | upgrade | uninstall-delete-all | uninstall-keep-data
+      - "ACTION"  # CHECK_PRE_REQS | STATUS | INSTALL | UNINSTALL_DELETE_ALL | UNINSTALL_KEEP_DATA | UPGRADE
       - "INSTALL_MODE"  # demo | production (affects whether to include sample data)
-      - "SOURCE_VERSION"  # For ACTION=upgrade: version being upgraded from
-      - "TARGET_VERSION"  # For ACTION=upgrade: version being upgraded to
 
     # Required permissions (for documentation and validation)
     # Navigator uses its own ServiceAccount - does not need to create per-quickstart RBAC
@@ -225,27 +224,45 @@ deployment:
     requiredPermissions:
       namespace:
         - apiGroups: [""]
-          resources: ["pods", "services", "secrets", "configmaps", "persistentvolumeclaims"]
-          verbs: ["get", "list", "create", "update", "patch", "delete"]
+          resources: ["pods", "services", "secrets", "configmaps", "persistentvolumeclaims", "serviceaccounts"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
         - apiGroups: ["apps"]
-          resources: ["deployments", "statefulsets"]
-          verbs: ["get", "list", "create", "update", "patch", "delete"]
+          resources: ["deployments", "statefulsets", "replicasets"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
         - apiGroups: ["route.openshift.io"]
           resources: ["routes"]
-          verbs: ["get", "list", "create", "update", "patch", "delete"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
         - apiGroups: ["k8s.keycloak.org"]
           resources: ["keycloaks", "keycloakrealmimports"]
-          verbs: ["get", "list", "create", "update", "patch", "delete"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        - apiGroups: ["batch"]
+          resources: ["jobs"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        - apiGroups: ["operators.coreos.com"]
+          resources: ["clusterserviceversions", "subscriptions", "operatorgroups"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        - apiGroups: ["rbac.authorization.k8s.io"]
+          resources: ["roles", "rolebindings"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
       cluster:
         - apiGroups: [""]
-          resources: ["nodes", "storageclasses"]
-          verbs: ["get", "list"]
+          resources: ["nodes", "storageclasses", "namespaces"]
+          verbs: ["get", "list", "delete"]
         - apiGroups: ["config.openshift.io"]
           resources: ["clusterversions"]
           verbs: ["get", "list"]
         - apiGroups: ["apiextensions.k8s.io"]
           resources: ["customresourcedefinitions"]
           verbs: ["get", "list"]
+        - apiGroups: ["route.openshift.io"]
+          resources: ["routes"]
+          verbs: ["get", "list"]
+        - apiGroups: ["packages.operators.coreos.com"]
+          resources: ["packagemanifests"]
+          verbs: ["get", "list"]
+        - apiGroups: ["rbac.authorization.k8s.io"]
+          resources: ["clusterroles", "clusterrolebindings"]
+          verbs: ["get", "list", "delete"]
 
   # Default namespace (can be overridden)
   defaultNamespace: "peoplemesh-quickstart"
@@ -401,12 +418,12 @@ cleanup:
   warning: |
     Choose uninstall mode:
 
-    uninstall-delete-all:
+    uninstall_delete_all:
       Removes all quickstart resources AND data volumes.
       This permanently deletes user profiles, résumés, and configuration.
       Cannot be undone.
 
-    uninstall-keep-data:
+    uninstall_keep_data:
       Removes quickstart but preserves data volumes.
       You can reinstall later and your data will still be there.
 

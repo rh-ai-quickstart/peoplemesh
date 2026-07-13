@@ -32,40 +32,58 @@ installer/
 From the repository root:
 
 ```bash
-docker build -t ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0 -f installer/Dockerfile .
+podman build -t quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0 -f installer/Dockerfile .
 ```
 
 **Note:** The build context is the repository root because it needs to copy the `peoplemesh-umbrella/` chart directory and `quickstart-manifest.yaml`.
 
-## Testing Locally
+## Testing
 
-### Validate Prerequisites (No Installation)
+The installer can be tested in two ways:
+
+1. **Local testing** - Run the installer container locally via podman (uses QEMU emulation on Apple Silicon)
+2. **Cluster testing** - Deploy the installer as a Kubernetes Job on the target cluster (native execution)
+
+### Local Testing (via podman)
+
+#### Validate Prerequisites
 
 ```bash
-docker run --rm \
-  -e ACTION=validate \
+podman run --rm \
+  -e ACTION=CHECK_PRE_REQS \
   -e TARGET_NAMESPACE=peoplemesh-test \
   -v $HOME/.kube/config:/tmp/kubeconfig:ro \
   -e KUBECONFIG=/tmp/kubeconfig \
-  ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+  quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
 ```
 
-### Test Installation
+#### Check Deployment Status
+
+```bash
+podman run --rm \
+  -e ACTION=STATUS \
+  -e TARGET_NAMESPACE=peoplemesh-test \
+  -v $HOME/.kube/config:/tmp/kubeconfig:ro \
+  -e KUBECONFIG=/tmp/kubeconfig \
+  quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+```
+
+#### Installation
 
 ```bash
 # Minimal installation - secrets auto-generated
-docker run --rm \
-  -e ACTION=install \
+podman run --rm \
+  -e ACTION=INSTALL \
   -e TARGET_NAMESPACE=peoplemesh-test \
   -e INSTALL_MODE=demo \
   -e PARAM_KEYCLOAK_REALM_TESTUSER_PASSWORD="YourSecurePassword" \
   -v $HOME/.kube/config:/tmp/kubeconfig:ro \
   -e KUBECONFIG=/tmp/kubeconfig \
-  ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+  quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
 
 # With GPU acceleration
-docker run --rm \
-  -e ACTION=install \
+podman run --rm \
+  -e ACTION=INSTALL \
   -e TARGET_NAMESPACE=peoplemesh-test \
   -e INSTALL_MODE=demo \
   -e PARAM_KEYCLOAK_REALM_TESTUSER_PASSWORD="YourSecurePassword" \
@@ -73,11 +91,11 @@ docker run --rm \
   -e PARAM_DOCLING_GPU_ENABLED=true \
   -v $HOME/.kube/config:/tmp/kubeconfig:ro \
   -e KUBECONFIG=/tmp/kubeconfig \
-  ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+  quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
 
 # With organization customization
-docker run --rm \
-  -e ACTION=install \
+podman run --rm \
+  -e ACTION=INSTALL \
   -e TARGET_NAMESPACE=peoplemesh-test \
   -e INSTALL_MODE=demo \
   -e PARAM_KEYCLOAK_REALM_TESTUSER_PASSWORD="YourSecurePassword" \
@@ -85,41 +103,94 @@ docker run --rm \
   -e PARAM_PEOPLEMESH_ORGANIZATION_CONTACTEMAIL="contact@mycompany.com" \
   -v $HOME/.kube/config:/tmp/kubeconfig:ro \
   -e KUBECONFIG=/tmp/kubeconfig \
-  ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+  quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
 ```
 
-### Test Upgrade
+#### Uninstall
 
 ```bash
-docker run --rm \
-  -e ACTION=upgrade \
+# Keep data (preserves PVCs for reinstall)
+podman run --rm \
+  -e ACTION=UNINSTALL_KEEP_DATA \
   -e TARGET_NAMESPACE=peoplemesh-test \
-  -e SOURCE_VERSION=0.9.0 \
-  -e TARGET_VERSION=1.0.0 \
   -v $HOME/.kube/config:/tmp/kubeconfig:ro \
   -e KUBECONFIG=/tmp/kubeconfig \
-  ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+  quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+
+# Delete all (complete cleanup)
+podman run --rm \
+  -e ACTION=UNINSTALL_DELETE_ALL \
+  -e TARGET_NAMESPACE=peoplemesh-test \
+  -v $HOME/.kube/config:/tmp/kubeconfig:ro \
+  -e KUBECONFIG=/tmp/kubeconfig \
+  quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
 ```
 
-### Test Uninstall
+### Cluster Testing (via Kubernetes Job)
+
+For testing in the actual cluster environment where Navigator will run the installer, use the `deploy_job` modifier:
 
 ```bash
-# Keep data
-docker run --rm \
-  -e ACTION=uninstall-keep-data \
-  -e TARGET_NAMESPACE=peoplemesh-test \
-  -v $HOME/.kube/config:/tmp/kubeconfig:ro \
-  -e KUBECONFIG=/tmp/kubeconfig \
-  ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+# Check prerequisites on cluster
+./installer/build.sh deploy_job check_pre_reqs <namespace>
 
-# Delete all
-docker run --rm \
-  -e ACTION=uninstall-delete-all \
-  -e TARGET_NAMESPACE=peoplemesh-test \
-  -v $HOME/.kube/config:/tmp/kubeconfig:ro \
-  -e KUBECONFIG=/tmp/kubeconfig \
-  ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+# Check deployment status on cluster
+./installer/build.sh deploy_job status <namespace>
+
+# Deploy installation on cluster
+./installer/build.sh deploy_job install <namespace>
+
+# Uninstall (keep data) on cluster
+./installer/build.sh deploy_job uninstall_keep_data <namespace>
+
+# Uninstall (delete all) on cluster
+./installer/build.sh deploy_job uninstall_delete_all <namespace>
 ```
+
+**How it works:**
+1. Builds the installer image and pushes to `quay.io/rh-ai-quickstart`
+2. Creates a Kubernetes Job in the target namespace
+3. Job pulls the image from quay.io (`imagePullPolicy: Always`)
+4. Streams the logs from the Job
+5. Tests in native cluster execution (no emulation)
+
+**When to use cluster testing:**
+- Testing on non-x86_64 development machines (validates native execution)
+- Verifying RBAC permissions work correctly
+- Testing the exact environment Navigator uses
+- Debugging cluster-specific issues
+- Testing all installer actions (not just install)
+
+**Note:** The Job uses `imagePullPolicy: Always` to pull from quay.io, so you must run `./installer/build.sh push` first to make the image available to the cluster.
+
+## Actions
+
+The installer supports the following actions (set via `ACTION` environment variable):
+
+| Action | Description | When to Use |
+|--------|-------------|-------------|
+| `CHECK_PRE_REQS` | Checks prerequisites without installing | Before installation to verify cluster readiness |
+| `STATUS` | Checks deployment condition (installed/uninstalled state) | Monitor deployment health or verify clean uninstall |
+| `INSTALL` | Installs the quickstart (includes CHECK_PRE_REQS step) | Deploy Peoplemesh to cluster |
+| `UNINSTALL_DELETE_ALL` | Removes all components and data (includes STATUS step) | Complete cleanup - deletes databases, secrets, PVCs |
+| `UNINSTALL_KEEP_DATA` | Removes runtime but keeps data volumes (includes STATUS step) | Preserve data for reinstall |
+| `UPGRADE` | Upgrades the quickstart to a newer version | Migrate from one version to another |
+
+**Key Differences:**
+
+- **CHECK_PRE_REQS vs STATUS**: 
+  - `CHECK_PRE_REQS` checks if prerequisites are met before installation
+  - `STATUS` checks the current deployment state (works for both installed and uninstalled)
+
+- **STATUS use cases**:
+  - Monitor deployment health when status HTTP endpoint is unavailable
+  - Verify orphaned resources after uninstall
+  - Quick deployment state check without waiting/retrying
+
+- **Uninstall actions**:
+  - Both automatically run `STATUS` after cleanup to confirm state
+  - `UNINSTALL_DELETE_ALL`: Complete cleanup (ready for fresh install)
+  - `UNINSTALL_KEEP_DATA`: Preserves databases for reinstall (same secrets needed)
 
 ## Environment Variables
 
@@ -127,7 +198,7 @@ docker run --rm \
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `ACTION` | Operation to perform | `validate`, `install`, `upgrade`, `uninstall-delete-all`, `uninstall-keep-data` |
+| `ACTION` | Operation to perform | `CHECK_PRE_REQS`, `STATUS`, `INSTALL`, `UNINSTALL_DELETE_ALL`, `UNINSTALL_KEEP_DATA`, `UPGRADE` |
 | `TARGET_NAMESPACE` | Kubernetes namespace | `peoplemesh-quickstart` |
 
 ### Required for Install
@@ -186,18 +257,18 @@ Error output (stderr):
 
 ```bash
 # Build
-docker build -t ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0 -f installer/Dockerfile .
+podman build -t quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0 -f installer/Dockerfile .
 
 # Test
-docker run --rm -e ACTION=install -e TARGET_NAMESPACE=test ...
+podman run --rm -e ACTION=install -e TARGET_NAMESPACE=test ...
 
 # Tag
-docker tag ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0 \
-           ghcr.io/rh-ai-quickstart/peoplemesh-installer:latest
+podman tag quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0 \
+           quay.io/rh-ai-quickstart/peoplemesh-installer:latest
 
 # Push
-docker push ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
-docker push ghcr.io/rh-ai-quickstart/peoplemesh-installer:latest
+podman push quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+podman push quay.io/rh-ai-quickstart/peoplemesh-installer:latest
 ```
 
 ## How Project Navigator Uses This
@@ -210,12 +281,12 @@ Navigator creates a Kubernetes Job with this image, passes parameters via enviro
 
 ```bash
 # Check what's missing
-docker run --rm \
+podman run --rm \
   -e ACTION=validate \
   -e TARGET_NAMESPACE=peoplemesh-test \
   -v $HOME/.kube/config:/tmp/kubeconfig:ro \
   -e KUBECONFIG=/tmp/kubeconfig \
-  ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0 2>&1 | jq .
+  quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0 2>&1 | jq .
 
 # Common issues:
 # - Keycloak Operator not installed in target namespace
@@ -263,11 +334,11 @@ When developing the installer locally:
 
 ```bash
 # Quick test without rebuilding (mount lib directory)
-docker run --rm \
+podman run --rm \
   -e ACTION=install \
   -e TARGET_NAMESPACE=test \
   -v $(pwd)/installer/lib:/installer/lib:ro \
   -v $HOME/.kube/config:/tmp/kubeconfig:ro \
   -e KUBECONFIG=/tmp/kubeconfig \
-  ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+  quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
 ```

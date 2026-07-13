@@ -2,16 +2,19 @@
 # Build script for peoplemesh installer container image
 #
 # Usage:
-#   ./build.sh          # Build locally
-#   ./build.sh push     # Build and push to registry
-#   ./build.sh test     # Build and run prerequisite check
+#   ./build.sh        # Build locally
+#   ./build.sh push   # Build and push to registry
+#
+# Environment variables:
+#   REGISTRY    - Container registry (default: quay.io/rh-ai-quickstart)
+#   VERSION     - Image version tag (default: 1.0.0)
 
 set -euo pipefail
 
 # Configuration
-REGISTRY="ghcr.io/rh-ai-quickstart"
+REGISTRY="${REGISTRY:-quay.io/rh-ai-quickstart}"
 IMAGE_NAME="peoplemesh-installer"
-VERSION="1.0.0"
+VERSION="${VERSION:-1.0.0}"
 FULL_IMAGE="${REGISTRY}/${IMAGE_NAME}:${VERSION}"
 LATEST_IMAGE="${REGISTRY}/${IMAGE_NAME}:latest"
 
@@ -45,18 +48,26 @@ info "Checking required files..."
 [[ -f "installer/Dockerfile" ]] || error "installer/Dockerfile not found"
 [[ -f "installer/entrypoint.sh" ]] || error "installer/entrypoint.sh not found"
 [[ -d "installer/lib" ]] || error "installer/lib directory not found"
-[[ -d "peoplemesh-umbrella" ]] || warn "peoplemesh-umbrella directory not found (chart will be missing from image)"
+[[ -d "peoplemesh-umbrella" ]] || error "peoplemesh-umbrella directory not found"
+
+# Build Helm dependencies before creating Docker image
+info "Building Helm chart dependencies..."
+cd peoplemesh-umbrella
+helm dependency update || error "Helm dependency update failed"
+cd ..
 
 # Build the image
 info "Building installer image: ${FULL_IMAGE}"
-docker build \
+# Target platform: linux/amd64 (OpenShift cluster nodes)
+podman build \
+  --platform linux/amd64 \
   -t "${FULL_IMAGE}" \
   -f installer/Dockerfile \
-  . || error "Docker build failed"
+  . || error "Podman build failed"
 
 # Tag as latest
 info "Tagging as latest: ${LATEST_IMAGE}"
-docker tag "${FULL_IMAGE}" "${LATEST_IMAGE}"
+podman tag "${FULL_IMAGE}" "${LATEST_IMAGE}"
 
 info "Build complete!"
 echo ""
@@ -64,105 +75,29 @@ echo "Image: ${FULL_IMAGE}"
 echo "Also tagged: ${LATEST_IMAGE}"
 echo ""
 
-# Handle additional commands
-case "${1:-}" in
-  push)
-    info "Pushing to registry..."
-    docker push "${FULL_IMAGE}" || error "Push failed"
-    docker push "${LATEST_IMAGE}" || error "Push of latest tag failed"
-    info "Push complete!"
-    ;;
+# Handle push command
+if [[ "${1:-}" == "push" ]]; then
+  info "Pushing to registry..."
+  podman push "${FULL_IMAGE}" || error "Push failed"
+  podman push "${LATEST_IMAGE}" || error "Push of latest tag failed"
+  info "Push complete!"
+  echo ""
+fi
 
-  test)
-    info "Running prerequisite validation (no installation)..."
-    echo ""
-
-    if [[ ! -f "$HOME/.kube/config" ]]; then
-      error "No kubeconfig found at $HOME/.kube/config"
-    fi
-
-    docker run --rm \
-      -e ACTION=validate \
-      -e TARGET_NAMESPACE=peoplemesh-test \
-      -v "$HOME/.kube/config:/tmp/kubeconfig:ro" \
-      -e KUBECONFIG=/tmp/kubeconfig \
-      "${FULL_IMAGE}" || true
-
-    echo ""
-    info "Prerequisite validation complete! Check output above for results."
-    ;;
-
-  install)
-    info "Running full installation to peoplemesh-test namespace..."
-    echo ""
-
-    if [[ ! -f "$HOME/.kube/config" ]]; then
-      error "No kubeconfig found at $HOME/.kube/config"
-    fi
-
-    docker run --rm \
-      -e ACTION=install \
-      -e TARGET_NAMESPACE=peoplemesh-test \
-      -e INSTALL_MODE=demo \
-      -e PARAM_OLLAMA_GPU_ENABLED=false \
-      -e PARAM_DOCLING_GPU_ENABLED=false \
-      -v "$HOME/.kube/config:/tmp/kubeconfig:ro" \
-      -e KUBECONFIG=/tmp/kubeconfig \
-      "${FULL_IMAGE}"
-
-    echo ""
-    info "Installation complete! Check output above for endpoint URLs."
-    ;;
-
-  uninstall)
-    info "Uninstalling from peoplemesh-test namespace (keeping data)..."
-    echo ""
-
-    if [[ ! -f "$HOME/.kube/config" ]]; then
-      error "No kubeconfig found at $HOME/.kube/config"
-    fi
-
-    docker run --rm \
-      -e ACTION=uninstall-keep-data \
-      -e TARGET_NAMESPACE=peoplemesh-test \
-      -v "$HOME/.kube/config:/tmp/kubeconfig:ro" \
-      -e KUBECONFIG=/tmp/kubeconfig \
-      "${FULL_IMAGE}"
-
-    echo ""
-    info "Uninstall complete! PVCs preserved for future reinstall."
-    ;;
-
-  uninstall-all)
-    info "Uninstalling from peoplemesh-test namespace (deleting all data)..."
-    echo ""
-
-    if [[ ! -f "$HOME/.kube/config" ]]; then
-      error "No kubeconfig found at $HOME/.kube/config"
-    fi
-
-    docker run --rm \
-      -e ACTION=uninstall-delete-all \
-      -e TARGET_NAMESPACE=peoplemesh-test \
-      -v "$HOME/.kube/config:/tmp/kubeconfig:ro" \
-      -e KUBECONFIG=/tmp/kubeconfig \
-      "${FULL_IMAGE}"
-
-    echo ""
-    info "Uninstall complete! All data deleted."
-    ;;
-
-  "")
-    # Just build, already done above
-    echo "Next steps:"
-    echo "  ./build.sh push          - Push to registry"
-    echo "  ./build.sh test          - Validate prerequisites (no install)"
-    echo "  ./build.sh install       - Test full installation"
-    echo "  ./build.sh uninstall     - Remove test installation (keep data)"
-    echo "  ./build.sh uninstall-all - Remove test installation (delete all data)"
-    ;;
-
-  *)
-    error "Unknown command: $1. Use: build.sh [push|test|install|uninstall|uninstall-all]"
-    ;;
-esac
+# Show next steps
+if [[ "${1:-}" != "push" ]]; then
+  echo "Next steps:"
+  echo "  ./installer/build.sh push                        - Push to registry"
+  echo ""
+  echo "Deploy to cluster:"
+  echo "  ./installer/deploy.sh check_pre_reqs <namespace> - Validate prerequisites"
+  echo "  ./installer/deploy.sh status <namespace>         - Check deployment status"
+  echo "  ./installer/deploy.sh install <namespace>        - Deploy installation"
+else
+  echo "Image pushed to registry!"
+  echo ""
+  echo "Deploy to cluster:"
+  echo "  ./installer/deploy.sh check_pre_reqs <namespace> - Validate prerequisites"
+  echo "  ./installer/deploy.sh status <namespace>         - Check deployment status"
+  echo "  ./installer/deploy.sh install <namespace>        - Deploy installation"
+fi

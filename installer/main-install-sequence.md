@@ -52,7 +52,7 @@ sequenceDiagram
     %% Step 9: Create installer job
     Navigator->>Cluster: Create Job with installer image
     activate Cluster
-    Note over Cluster: Job spec:<br/>- Image: peoplemesh-installer:1.0.0<br/>- Env: ACTION=install<br/>- Env: PARAM_KEYCLOAK_REALM_TESTUSER_PASSWORD=***<br/>- Env: PARAM_OLLAMA_GPU_ENABLED=true<br/>- Env: TARGET_NAMESPACE=peoplemesh-quickstart
+    Note over Cluster: Job spec:<br/>- Image: peoplemesh-installer:1.0.0<br/>- Env: ACTION=INSTALL<br/>- Env: PARAM_KEYCLOAK_REALM_TESTUSER_PASSWORD=***<br/>- Env: PARAM_OLLAMA_GPU_ENABLED=true<br/>- Env: TARGET_NAMESPACE=peoplemesh-quickstart
     Cluster->>Job: Start installer container
     deactivate Cluster
     activate Job
@@ -122,10 +122,10 @@ spec:
     spec:
       containers:
       - name: installer
-        image: ghcr.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
+        image: quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0
         env:
         - name: ACTION
-          value: "install"
+          value: "INSTALL"
         - name: TARGET_NAMESPACE
           value: "peoplemesh-quickstart"
         - name: INSTALL_MODE

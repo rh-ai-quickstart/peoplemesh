@@ -21,6 +21,7 @@ NAMESPACE=""
 OLLAMA_GPU="false"
 DOCLING_GPU="false"
 TEST_PASSWORD=""
+EXTRA_HELM_ARGS=""
 
 # Parse arguments
 while [ $# -gt 0 ]; do
@@ -39,6 +40,11 @@ while [ $# -gt 0 ]; do
             ;;
         --test-password)
             TEST_PASSWORD="$2"
+            shift 2
+            ;;
+        --set)
+            # Allow passing through additional Helm --set arguments
+            EXTRA_HELM_ARGS="$EXTRA_HELM_ARGS --set $2"
             shift 2
             ;;
         --help|-h)
@@ -89,6 +95,26 @@ if ! command -v helm >/dev/null 2>&1; then
     exit 1
 fi
 
+# Note: Namespace should already exist when running via installer container
+# For standalone usage, check if namespace exists
+if command -v oc >/dev/null 2>&1; then
+    if ! oc get namespace "$NAMESPACE" >/dev/null 2>&1; then
+        echo "Creating namespace: $NAMESPACE"
+        oc create namespace "$NAMESPACE" || {
+            echo "Error: Failed to create namespace $NAMESPACE"
+            exit 1
+        }
+    fi
+elif command -v kubectl >/dev/null 2>&1; then
+    if ! kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+        echo "Creating namespace: $NAMESPACE"
+        kubectl create namespace "$NAMESPACE" || {
+            echo "Error: Failed to create namespace $NAMESPACE"
+            exit 1
+        }
+    fi
+fi
+
 # Generate secure secrets (not exported to environment)
 echo "Generating secure secrets..."
 KC_DB_PASSWORD=$(openssl rand -base64 24)
@@ -107,7 +133,7 @@ echo "Ollama GPU:   $OLLAMA_GPU"
 echo "Docling GPU:  $DOCLING_GPU"
 echo ""
 
-# Run Helm install
+# Run Helm install (with extra args if provided)
 helm install peoplemesh . \
   --namespace "$NAMESPACE" \
   --timeout 15m \
@@ -120,7 +146,8 @@ helm install peoplemesh . \
   --set peoplemesh.security.maintenanceApiKey="$MAINT_KEY" \
   --set keycloak.realm.testUser.password="$TEST_PASSWORD" \
   --set ollama.gpu.enabled="$OLLAMA_GPU" \
-  --set docling.gpu.enabled="$DOCLING_GPU"
+  --set docling.gpu.enabled="$DOCLING_GPU" \
+  $EXTRA_HELM_ARGS
 
 INSTALL_EXIT_CODE=$?
 

@@ -366,8 +366,8 @@ See [INSTALL.md](INSTALL.md) for detailed configuration guide.
 **Project Documentation:**
 - [Installation Guide](INSTALL.md) - Complete installation reference with all configuration options
 - [GPU Setup Guide](GPU-SETUP.md) - Detailed GPU configuration and troubleshooting
-- [Deployment Summary](QUICKSTART-SUMMARY.md) - Architecture decisions and design rationale
-- [Logout Fix Documentation](LOGOUT-FIX.md) - OIDC logout implementation details
+- [Deployment Summary](docs/QUICKSTART-SUMMARY.md) - Architecture decisions and design rationale
+- [Logout Fix Documentation](docs/LOGOUT-FIX.md) - OIDC logout implementation details
 
 **Upstream Projects:**
 - [Peoplemesh GitHub](https://github.com/francescopace/peoplemesh) - Main application repository

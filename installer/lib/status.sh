@@ -1,5 +1,92 @@
 #!/bin/bash
 
+verify_deployment() {
+  # Verify deployment state - works for both installed and uninstalled states
+  # Returns deployment health information without waiting/retrying
+
+  log_status "running" "verifying" "Checking namespace: $TARGET_NAMESPACE"
+
+  # Check if namespace exists
+  NAMESPACE_EXISTS=false
+  if oc get namespace "$TARGET_NAMESPACE" >/dev/null 2>&1; then
+    NAMESPACE_EXISTS=true
+    log_status "running" "verifying" "Namespace exists"
+  else
+    log_status "running" "verifying" "Namespace does not exist - clean state"
+    return 0
+  fi
+
+  # Check for Helm release
+  HELM_STATUS=$(helm list -n "$TARGET_NAMESPACE" 2>/dev/null | grep 'peoplemesh' || echo "")
+
+  if [[ -z "$HELM_STATUS" ]]; then
+    log_status "running" "verifying" "No Helm release found"
+
+    # Check for orphaned quickstart resources (exclude installer infrastructure)
+    # Pods: Exclude completed Jobs and installer Jobs
+    POD_COUNT=$(oc get pods -n "$TARGET_NAMESPACE" -o json 2>/dev/null | \
+      jq '[.items[] | select(
+        .status.phase != "Succeeded" and
+        (.metadata.labels.app // "") != "peoplemesh-installer"
+      )] | length' 2>/dev/null || echo "0")
+
+    # PVCs: All PVCs are considered quickstart resources
+    PVC_COUNT=$(oc get pvc -n "$TARGET_NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+
+    # Secrets: Only count Helm-managed secrets (exclude OpenShift default secrets and installer secrets)
+    SECRET_COUNT=$(oc get secret -n "$TARGET_NAMESPACE" -o json 2>/dev/null | \
+      jq '[.items[] | select(
+        ((.metadata.labels."app.kubernetes.io/managed-by" // "") == "Helm" or
+         (.metadata.name | startswith("peoplemesh-")) or
+         (.metadata.name | startswith("keycloak-"))) and
+        (.metadata.name | startswith("peoplemesh-installer-") | not) and
+        (.metadata.name | startswith("peoplemesh-cleanup-") | not)
+      )] | length' 2>/dev/null || echo "0")
+
+    if [[ "$POD_COUNT" -gt 0 || "$PVC_COUNT" -gt 0 || "$SECRET_COUNT" -gt 0 ]]; then
+      log_status "running" "verifying" "Orphaned resources found: $POD_COUNT pods, $PVC_COUNT PVCs, $SECRET_COUNT secrets"
+    else
+      log_status "running" "verifying" "Clean uninstall verified - no quickstart resources found"
+    fi
+    return 0
+  fi
+
+  # Helm release exists - check deployment health
+  log_status "running" "verifying" "Helm release found: $HELM_STATUS"
+
+  # Check pod status
+  TOTAL_PODS=$(oc get pods -n "$TARGET_NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+  RUNNING_PODS=$(oc get pods -n "$TARGET_NAMESPACE" -o json 2>/dev/null | \
+    jq '[.items[] | select(.status.phase == "Running")] | length' 2>/dev/null || echo "0")
+  READY_PODS=$(oc get pods -n "$TARGET_NAMESPACE" -o json 2>/dev/null | \
+    jq '[.items[] | select(.status.phase == "Running" and (.status.conditions[]? | select(.type == "Ready" and .status == "True")))] | length' 2>/dev/null || echo "0")
+
+  log_status "running" "verifying" "Pod status: $READY_PODS/$RUNNING_PODS/$TOTAL_PODS (ready/running/total)"
+
+  # Check routes
+  ROUTE_COUNT=$(oc get routes -n "$TARGET_NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+  log_status "running" "verifying" "Routes: $ROUTE_COUNT"
+
+  # Check PVCs
+  PVC_TOTAL=$(oc get pvc -n "$TARGET_NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+  PVC_BOUND=$(oc get pvc -n "$TARGET_NAMESPACE" -o json 2>/dev/null | \
+    jq '[.items[] | select(.status.phase == "Bound")] | length' 2>/dev/null || echo "0")
+  log_status "running" "verifying" "PVCs: $PVC_BOUND/$PVC_TOTAL (bound/total)"
+
+  # Quick health check (no retries)
+  ROUTE_HOST=$(oc get route peoplemesh -n "$TARGET_NAMESPACE" -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
+  if [[ -n "$ROUTE_HOST" ]]; then
+    HEALTH_URL="https://$ROUTE_HOST/q/health/ready"
+    if HTTP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null); then
+      log_status "running" "verifying" "Peoplemesh API health: HTTP $HTTP_CODE"
+    else
+      log_status "running" "verifying" "Peoplemesh API: unreachable"
+    fi
+  fi
+
+  log_status "running" "verifying" "Deployment verification complete"
+}
+
 check_deployment_status() {
   # Wait for all pods to be ready
   log_status "running" "checking-status" "Waiting for pods to be ready (timeout: 15m)..."
@@ -12,7 +99,9 @@ check_deployment_status() {
     READY_PODS=$(oc get pods -n "$TARGET_NAMESPACE" -o json 2>/dev/null | \
       jq '[.items[] | select(.status.phase == "Running" and (.status.conditions[]? | select(.type == "Ready" and .status == "True")))] | length' 2>/dev/null || echo "0")
 
-    TOTAL_PODS=$(oc get pods -n "$TARGET_NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    # Count total pods excluding completed Jobs (Succeeded phase)
+    TOTAL_PODS=$(oc get pods -n "$TARGET_NAMESPACE" -o json 2>/dev/null | \
+      jq '[.items[] | select(.status.phase != "Succeeded")] | length' 2>/dev/null || echo "0")
 
     # We expect at least 6 core pods: peoplemesh, keycloak, keycloak-postgres, pgvector, ollama, docling
     # But actual count may vary based on configuration (e.g., ollama disabled in external mode)
