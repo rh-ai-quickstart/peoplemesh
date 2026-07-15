@@ -98,7 +98,10 @@ metadata:
 rules:
   # Cluster-scoped read permissions for prerequisites checking
   - apiGroups: [""]
-    resources: ["nodes", "storageclasses"]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
     verbs: ["get", "list"]
   - apiGroups: ["config.openshift.io"]
     resources: ["clusterversions"]
@@ -131,6 +134,9 @@ rules:
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["operators.coreos.com"]
     resources: ["clusterserviceversions", "subscriptions", "operatorgroups"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -203,6 +209,33 @@ EOF
   }
 
   echo ""
+  info "Waiting for Job to complete..."
+
+  # Wait for Job to reach a terminal state (Complete or Failed)
+  # Poll every 5 seconds for up to 20 minutes
+  WAIT_COUNT=0
+  MAX_WAIT=240  # 20 minutes = 240 * 5 seconds
+  while [[ $WAIT_COUNT -lt $MAX_WAIT ]]; do
+    JOB_COMPLETE=$(oc get job -n "$INSTALLER_NAMESPACE" "${JOB_NAME}" -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null)
+    JOB_FAILED=$(oc get job -n "$INSTALLER_NAMESPACE" "${JOB_NAME}" -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null)
+
+    if [[ "$JOB_COMPLETE" == "True" ]]; then
+      info "Job completed successfully"
+      break
+    elif [[ "$JOB_FAILED" == "True" ]]; then
+      warn "Job failed. Check logs above for details."
+      break
+    fi
+
+    sleep 5
+    WAIT_COUNT=$((WAIT_COUNT + 1))
+  done
+
+  if [[ $WAIT_COUNT -eq $MAX_WAIT ]]; then
+    warn "Job did not complete within 20 minutes"
+    echo "  Check status: oc get job -n $INSTALLER_NAMESPACE ${JOB_NAME}"
+  fi
+
   info "Job complete! Check status with:"
   echo "  oc get job -n $INSTALLER_NAMESPACE ${JOB_NAME}"
   echo "  oc describe job -n $INSTALLER_NAMESPACE ${JOB_NAME}"
@@ -302,6 +335,19 @@ case "${1:-}" in
     # Note: Installer Job cleans up all RBAC via EXIT trap
     ;;
 
+  upgrade)
+    NAMESPACE="${2:-${NAMESPACE:-}}"
+    if [[ -z "$NAMESPACE" ]]; then
+      error "Namespace required. Usage: ./deploy.sh upgrade <namespace>"
+    fi
+
+    # Note: UPGRADE action is not currently supported by the installer
+    # This case exists to allow testing that the installer properly rejects unsupported actions
+    UPGRADE_ENV="        - name: INSTALL_MODE
+          value: \"demo\""
+    deploy_job "UPGRADE" "$NAMESPACE" "$UPGRADE_ENV"
+    ;;
+
   "")
     echo "Peoplemesh Installer - Deploy Jobs to Cluster"
     echo ""
@@ -313,12 +359,13 @@ case "${1:-}" in
     echo "  install <namespace>                  - Deploy installation"
     echo "  uninstall_keep_data <namespace>      - Uninstall (keep data)"
     echo "  uninstall_delete_all <namespace>     - Uninstall (delete all)"
+    echo "  upgrade <namespace>                  - Upgrade installation (not supported yet)"
     echo ""
     echo "Note: Image must already be pushed to ${FULL_IMAGE}"
     echo "      Run ./build.sh push first if needed."
     ;;
 
   *)
-    error "Unknown action: $1. Use: deploy.sh [check_pre_reqs|status|install|uninstall_keep_data|uninstall_delete_all] <namespace>"
+    error "Unknown action: $1. Use: deploy.sh [check_pre_reqs|status|install|uninstall_keep_data|uninstall_delete_all|upgrade] <namespace>"
     ;;
 esac

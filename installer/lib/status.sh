@@ -6,11 +6,17 @@ verify_deployment() {
 
   log_status "running" "verifying" "Checking namespace: $TARGET_NAMESPACE"
 
-  # Check if namespace exists
+  # Check if namespace exists and its phase
   NAMESPACE_EXISTS=false
-  if oc get namespace "$TARGET_NAMESPACE" >/dev/null 2>&1; then
+  NAMESPACE_PHASE=$(oc get namespace "$TARGET_NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null)
+
+  if [[ -n "$NAMESPACE_PHASE" ]]; then
     NAMESPACE_EXISTS=true
-    log_status "running" "verifying" "Namespace exists"
+    if [[ "$NAMESPACE_PHASE" == "Terminating" ]]; then
+      log_status "running" "verifying" "Namespace is terminating"
+    else
+      log_status "running" "verifying" "Namespace exists"
+    fi
   else
     log_status "running" "verifying" "Namespace does not exist - clean state"
     return 0
@@ -151,7 +157,8 @@ check_deployment_status() {
     log_error "Unable to retrieve Keycloak route. Check route with: oc get route keycloak -n $TARGET_NAMESPACE"
   fi
 
-  KC_HEALTH_URL="https://$KC_ROUTE_HOST/health/ready"
+  # Use /realms/master as health check endpoint (Keycloak doesn't expose /health/ready)
+  KC_HEALTH_URL="https://$KC_ROUTE_HOST/realms/master"
 
   for i in {1..24}; do  # Try for 4 minutes
     if HTTP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" "$KC_HEALTH_URL" 2>/dev/null); then

@@ -45,6 +45,18 @@ cleanup_installer_rbac() {
 : "${TARGET_NAMESPACE:?TARGET_NAMESPACE must be set}"
 : "${INSTALL_MODE:=demo}"  # Default to demo mode if not specified
 
+# Validate supported actions
+case "$ACTION" in
+  UPGRADE)
+    log_error "Deployment Action (UPGRADE) not supported."
+    ;;
+esac
+
+# Validate supported installation modes
+if [[ "$INSTALL_MODE" != "demo" ]]; then
+  log_error "Installation mode ($INSTALL_MODE) not supported. Only 'demo' mode is currently supported."
+fi
+
 # Trap to ensure cleanup happens even on error (except for prerequisites failure)
 cleanup_on_exit() {
   local exit_code=$?
