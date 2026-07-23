@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=quickstart-manifest.schema.json
 # Quickstart Manifest v1.0
 # Machine-readable metadata for integrating quickstart deployment with the OpenShift Project Navigator
 # This file enables both chat-driven and catalog UI discovery, evaluation, and deployment

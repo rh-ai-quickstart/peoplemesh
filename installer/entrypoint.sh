@@ -63,9 +63,9 @@ write_log_configmap() {
                date -u -v+7d '+%Y-%m-%d' 2>/dev/null || \
                echo "unknown")
 
-  # Truncate log to fit ConfigMap size limits (1MB max, keep under 512KB to be safe)
+  # Keep the most recent 50KB of log output (ConfigMap max is 1MB)
   local log_content
-  log_content=$(tail -c 500000 "$_LOG_FILE" 2>/dev/null || echo "")
+  log_content=$(tail -c 51200 "$_LOG_FILE" 2>/dev/null || echo "")
 
   if [[ -z "$log_content" ]]; then
     return 0
