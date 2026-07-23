@@ -8,7 +8,7 @@ verify_deployment() {
 
   # Check if namespace exists and its phase
   NAMESPACE_EXISTS=false
-  NAMESPACE_PHASE=$(oc get namespace "$TARGET_NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null)
+  NAMESPACE_PHASE=$(oc get namespace "$TARGET_NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || true)
 
   if [[ -n "$NAMESPACE_PHASE" ]]; then
     NAMESPACE_EXISTS=true

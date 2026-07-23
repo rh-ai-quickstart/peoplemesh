@@ -187,11 +187,14 @@ spec:
       - name: installer
         image: ${FULL_IMAGE}
         imagePullPolicy: Always
+        terminationMessagePolicy: FallbackToLogsOnError
         env:
         - name: ACTION
           value: "${ACTION}"
         - name: TARGET_NAMESPACE
           value: "${TARGET_NAMESPACE}"
+        - name: JOB_NAME
+          value: "${JOB_NAME}"
 ${EXTRA_ENV}
 EOF
 
@@ -236,6 +239,22 @@ EOF
     echo "  Check status: oc get job -n $INSTALLER_NAMESPACE ${JOB_NAME}"
   fi
 
+  # Retrieve termination message (try pod first, fall back to Job annotation)
+  TERM_MSG=""
+  POD_NAME=$(oc get pods -n "$INSTALLER_NAMESPACE" -l "job-name=${JOB_NAME}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+  if [[ -n "$POD_NAME" ]]; then
+    TERM_MSG=$(oc get pod -n "$INSTALLER_NAMESPACE" "$POD_NAME" -o jsonpath='{.status.containerStatuses[0].state.terminated.message}' 2>/dev/null)
+  fi
+  if [[ -z "$TERM_MSG" ]]; then
+    TERM_MSG=$(oc get job -n "$INSTALLER_NAMESPACE" "${JOB_NAME}" -o jsonpath='{.metadata.annotations.peoplemesh-installer/termination-message}' 2>/dev/null)
+  fi
+  if [[ -n "$TERM_MSG" ]]; then
+    echo ""
+    info "Termination message:"
+    echo "  $TERM_MSG"
+  fi
+
+  echo ""
   info "Job complete! Check status with:"
   echo "  oc get job -n $INSTALLER_NAMESPACE ${JOB_NAME}"
   echo "  oc describe job -n $INSTALLER_NAMESPACE ${JOB_NAME}"
