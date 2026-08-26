@@ -3,10 +3,17 @@
 check_prerequisites() {
   local missing=()
 
-  # Check if target namespace exists (report status, don't create)
+  # Target namespace must NOT already exist. This installer owns the full
+  # lifecycle of the target namespace (it creates it during install and removes
+  # it on uninstall_delete_all), so a namespace that already exists was not
+  # created by this run. It may contain another workload or remnants of a
+  # previous (possibly failed) install -- e.g. an OperatorGroup, operator
+  # Subscription/CSV, or leftover secrets. Installing into it would risk Helm
+  # "invalid ownership metadata" errors and clobbering whatever is there, so we
+  # block the install and require the user to clear it first.
   log_status "running" "validating" "Checking target namespace: $TARGET_NAMESPACE"
   if oc get namespace "$TARGET_NAMESPACE" >/dev/null 2>&1; then
-    log_status "running" "validating" "Target namespace exists"
+    missing+=("Target namespace '$TARGET_NAMESPACE' already exists. This installer must create the namespace itself to avoid clobbering existing resources. Delete it (oc delete namespace $TARGET_NAMESPACE) or run uninstall_delete_all, or choose a namespace that does not yet exist, then retry.")
   else
     log_status "running" "validating" "Target namespace does not exist (will be created during installation)"
   fi

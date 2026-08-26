@@ -84,14 +84,19 @@ for doc in docs:
 }
 
 deploy_quickstart() {
-  # Create target namespace if it doesn't exist
-  log_status "running" "deploying" "Creating target namespace..."
-  if ! oc get namespace "$TARGET_NAMESPACE" >/dev/null 2>&1; then
-    oc create namespace "$TARGET_NAMESPACE" || log_error "Failed to create namespace $TARGET_NAMESPACE"
-    log_status "running" "deploying" "Namespace created: $TARGET_NAMESPACE"
-  else
-    log_status "running" "deploying" "Namespace already exists: $TARGET_NAMESPACE"
+  # Defense-in-depth namespace collision guard. check_prerequisites already
+  # blocks INSTALL when the target namespace exists, but re-check here in case
+  # deploy_quickstart is ever invoked directly, or the namespace was created
+  # between the prerequisite check and now (TOCTOU). Never proceed into a
+  # pre-existing namespace -- that would risk clobbering resources we don't own.
+  log_status "running" "deploying" "Checking target namespace: $TARGET_NAMESPACE"
+  if oc get namespace "$TARGET_NAMESPACE" >/dev/null 2>&1; then
+    log_error "Target namespace '$TARGET_NAMESPACE' already exists. Installation aborted to avoid clobbering existing resources. Delete it (oc delete namespace $TARGET_NAMESPACE) or run uninstall_delete_all, or choose a namespace that does not yet exist, then retry."
   fi
+
+  log_status "running" "deploying" "Creating target namespace..."
+  oc create namespace "$TARGET_NAMESPACE" || log_error "Failed to create namespace $TARGET_NAMESPACE"
+  log_status "running" "deploying" "Namespace created: $TARGET_NAMESPACE"
 
   # Install Keycloak Operator (requires target namespace to exist)
   install_keycloak_operator
