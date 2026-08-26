@@ -127,12 +127,17 @@ deploy_quickstart() {
     INSTALL_ARGS+=(--docling-gpu false)
   fi
 
-  # Optional: Organization customization (passed as --set arguments)
+  # Optional: Organization customization. These are free-text values (an org
+  # name like "Red Hat, Inc." may contain spaces and commas), so pass them with
+  # --set-string and backslash-escape literal commas that Helm would otherwise
+  # treat as --set multi-value delimiters.
   if [[ -n "${PARAM_PEOPLEMESH_ORGANIZATION_NAME:-}" ]]; then
-    INSTALL_ARGS+=(--set "peoplemesh.organization.name=$PARAM_PEOPLEMESH_ORGANIZATION_NAME")
+    org_name="${PARAM_PEOPLEMESH_ORGANIZATION_NAME//,/\\,}"
+    INSTALL_ARGS+=(--set-string "peoplemesh.organization.name=$org_name")
   fi
   if [[ -n "${PARAM_PEOPLEMESH_ORGANIZATION_CONTACTEMAIL:-}" ]]; then
-    INSTALL_ARGS+=(--set "peoplemesh.organization.contactEmail=$PARAM_PEOPLEMESH_ORGANIZATION_CONTACTEMAIL")
+    org_email="${PARAM_PEOPLEMESH_ORGANIZATION_CONTACTEMAIL//,/\\,}"
+    INSTALL_ARGS+=(--set-string "peoplemesh.organization.contactEmail=$org_email")
   fi
 
   # Run the install script

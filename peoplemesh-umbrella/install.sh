@@ -1,7 +1,7 @@
-#!/bin/sh
+#!/usr/bin/env bash
 #
 # Simple deployment script for Peoplemesh Quickstart
-# Compatible with sh, bash, zsh on Linux and macOS
+# Requires bash (uses arrays to pass Helm overrides safely). Runs on Linux and macOS.
 #
 # Usage: ./install.sh --namespace <namespace> --test-password <password> [OPTIONS]
 #
@@ -21,7 +21,10 @@ NAMESPACE=""
 OLLAMA_GPU="false"
 DOCLING_GPU="false"
 TEST_PASSWORD=""
-EXTRA_HELM_ARGS=""
+# Collect pass-through Helm overrides as an array, NOT a string. A string that
+# is later expanded unquoted word-splits on spaces, so a value like
+# "Red Hat" breaks into separate arguments and the install fails.
+EXTRA_HELM_ARGS=()
 
 # Parse arguments
 while [ $# -gt 0 ]; do
@@ -44,7 +47,13 @@ while [ $# -gt 0 ]; do
             ;;
         --set)
             # Allow passing through additional Helm --set arguments
-            EXTRA_HELM_ARGS="$EXTRA_HELM_ARGS --set $2"
+            EXTRA_HELM_ARGS+=(--set "$2")
+            shift 2
+            ;;
+        --set-string)
+            # Pass-through for string-typed overrides (names, free text). Keeps
+            # values from being coerced to bool/number by Helm.
+            EXTRA_HELM_ARGS+=(--set-string "$2")
             shift 2
             ;;
         --help|-h)
@@ -147,7 +156,7 @@ helm install peoplemesh . \
   --set keycloak.realm.testUser.password="$TEST_PASSWORD" \
   --set ollama.gpu.enabled="$OLLAMA_GPU" \
   --set docling.gpu.enabled="$DOCLING_GPU" \
-  $EXTRA_HELM_ARGS
+  "${EXTRA_HELM_ARGS[@]}"
 
 INSTALL_EXIT_CODE=$?
 
