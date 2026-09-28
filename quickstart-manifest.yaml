@@ -236,18 +236,16 @@ deployment:
       - "INSTALL_MODE"  # demo | production (affects whether to include sample data)
 
     # RBAC requirements for the installer Job
-    # Navigator creates these resources in the default namespace before running the Job
+    # Navigator creates these resources in the Job's namespace before running the Job
     # and cleans them up after the Job completes
     rbac:
-      # ServiceAccount in default namespace (where the Job runs)
+      # ServiceAccount in the installer Job's namespace (where the Job runs)
       serviceAccount:
         name: "peoplemesh-installer"
-        namespace: "default"
 
-      # Role in default namespace (for the installer pod to inspect its own environment)
-      defaultNamespaceRole:
+      # Role in the installer Job's namespace (for the installer pod to inspect its own environment)
+      jobNamespaceRole:
         name: "peoplemesh-installer"
-        namespace: "default"
         rules:
           - apiGroups: [""]
             resources: ["pods", "configmaps"]
@@ -256,17 +254,15 @@ deployment:
             resources: ["jobs"]
             verbs: ["get", "list", "watch"]
 
-      # RoleBinding in default namespace
-      defaultNamespaceRoleBinding:
+      # RoleBinding in the installer Job's namespace
+      jobNamespaceRoleBinding:
         name: "peoplemesh-installer"
-        namespace: "default"
         roleRef:
           kind: "Role"
           name: "peoplemesh-installer"
         subjects:
           - kind: "ServiceAccount"
             name: "peoplemesh-installer"
-            namespace: "default"
 
       # ClusterRole with all installation permissions
       # When bound via ClusterRoleBinding, namespace-scoped permissions apply to ALL namespaces
@@ -327,7 +323,6 @@ deployment:
         subjects:
           - kind: "ServiceAccount"
             name: "peoplemesh-installer"
-            namespace: "default"
 
   # Default namespace (can be overridden)
   defaultNamespace: "peoplemesh-quickstart"
