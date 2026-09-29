@@ -38,12 +38,16 @@ persistence:
 # Node affinity - optional, use for advanced GPU scheduling
 nodeAffinity: {}
 
-# Tolerations for GPU nodes - always present, allows scheduling on GPU nodes
-# These are harmless when gpu.enabled=false (pod won't request GPU anyway)
-tolerations:
-  - key: g5-gpu
-    operator: Exists
-    effect: NoSchedule
-  - key: nvidia.com/gpu
-    operator: Exists
-    effect: NoSchedule
+# GPU node tolerations are shared across all GPU-requiring components via the
+# umbrella chart's global.gpuTolerations value. The installer auto-detects the
+# cluster's GPU node taint keys (or accepts an override) and sets this at deploy
+# time. The default below only applies to standalone installs of this subchart.
+# Tolerations are harmless when gpu.enabled=false (pod won't request a GPU anyway).
+global:
+  gpuTolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+    - key: g5-gpu
+      operator: Exists
+      effect: NoSchedule

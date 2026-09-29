@@ -324,6 +324,16 @@ case "${1:-}" in
       DOCLING_GPU_ENABLED="true"
     fi
 
+    # Optional GPU taint toleration override. By default the installer auto-detects
+    # the NoSchedule taint keys on the cluster's GPU nodes. Provide a comma-separated
+    # list (e.g. 'g5-gpu,g6e-gpu') only to override that auto-detection.
+    GPU_TOLERATION_KEYS=""
+    if [[ "$OLLAMA_GPU_ENABLED" == "true" || "$DOCLING_GPU_ENABLED" == "true" ]]; then
+      echo ""
+      echo "GPU node taint tolerations are auto-detected by default."
+      read -p "Override GPU taint keys (comma-separated) [auto-detect]: " GPU_TOLERATION_KEYS
+    fi
+
     echo ""
 
     INSTALL_ENV="        - name: INSTALL_MODE
@@ -334,6 +344,11 @@ case "${1:-}" in
           value: \"${OLLAMA_GPU_ENABLED}\"
         - name: PARAM_DOCLING_GPU_ENABLED
           value: \"${DOCLING_GPU_ENABLED}\""
+    if [[ -n "$GPU_TOLERATION_KEYS" ]]; then
+      INSTALL_ENV="${INSTALL_ENV}
+        - name: PARAM_GPU_TOLERATIONKEYS
+          value: \"${GPU_TOLERATION_KEYS}\""
+    fi
     deploy_job "INSTALL" "$NAMESPACE" "$INSTALL_ENV"
     ;;
 

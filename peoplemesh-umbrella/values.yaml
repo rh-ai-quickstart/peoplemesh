@@ -6,6 +6,22 @@
 # Cluster domain auto-detected from OpenShift console route
 # Keycloak issuer URL is auto-detected - no manual configuration needed!
 
+# Global values shared with all subcharts.
+global:
+  # GPU node tolerations applied to every GPU-requiring pod (Ollama, Docling,
+  # vLLM) so they can schedule onto tainted GPU nodes. The installer overwrites
+  # this at deploy time: it auto-detects the NoSchedule taint keys on the
+  # cluster's GPU nodes, or uses the operator-supplied gpu.tolerationKeys
+  # override. These defaults cover the most common taint keys for standalone
+  # (non-installer) `helm install` use.
+  gpuTolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+    - key: g5-gpu
+      operator: Exists
+      effect: NoSchedule
+
 # Keycloak authentication server
 keycloak:
   enabled: true
@@ -133,13 +149,6 @@ docling:
       limits:
         cpu: 2000m
         memory: 4Gi
-    tolerations:
-      - key: g5-gpu
-        operator: Exists
-        effect: NoSchedule
-      - key: nvidia.com/gpu
-        operator: Exists
-        effect: NoSchedule
 
 # vLLM inference server (local LLM deployment with GPU)
 # Set enabled: false to use Ollama or external LLM instead
@@ -189,14 +198,6 @@ ollama:
   persistence:
     enabled: true
     size: 50Gi
-  # Tolerations for GPU nodes - pre-configured for common GPU taints
-  tolerations:
-    - key: g5-gpu
-      operator: Exists
-      effect: NoSchedule
-    - key: nvidia.com/gpu
-      operator: Exists
-      effect: NoSchedule
 
 # Peoplemesh application
 peoplemesh:

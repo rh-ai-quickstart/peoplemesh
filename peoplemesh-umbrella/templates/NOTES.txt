@@ -48,7 +48,7 @@ Keycloak Admin Console:
 Test User Login:
   Username: {{ .Values.keycloak.realm.testUser.username }}
   Email: {{ .Values.keycloak.realm.testUser.email }}
-  Password: {{ .Values.keycloak.realm.testUser.password }}
+  Password: (the test user password you provided during installation)
 
   Login Steps:
     1. Navigate to the application URL above

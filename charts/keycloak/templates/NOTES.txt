@@ -46,7 +46,7 @@ OIDC Client Configuration:
 Test User Created:
   Username: {{ .Values.realm.testUser.username }}
   Email: {{ .Values.realm.testUser.email }}
-  Password: {{ .Values.realm.testUser.password }}
+  Password: (the test user password you provided during installation)
 
 To login with the test user:
   1. Navigate to your peoplemesh application

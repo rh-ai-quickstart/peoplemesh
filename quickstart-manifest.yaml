@@ -226,7 +226,7 @@ deployment:
 
   # Installer container image configuration
   installer:
-    image: "quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.0"
+    image: "quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.2"
     command: ["/installer/entrypoint.sh"]
 
     # Environment variables the installer expects
@@ -375,6 +375,13 @@ parameters:
       required: false
       default: false
       llmGuidance: "Only enable if cluster has NVIDIA GPUs. Same GPU can be used for both ollama and docling."
+
+    - name: "gpu.tolerationKeys"
+      displayName: "GPU Taint Toleration Keys"
+      description: "Comma-separated list of Kubernetes taint keys for GPU node scheduling. Overrides auto-detection."
+      type: "string"
+      required: false
+      llmGuidance: "Only set this if the cluster uses non-standard taint keys on GPU nodes. By default, when GPU acceleration is enabled the installer auto-detects the NoSchedule taints on GPU nodes and tolerates them. If the user provides a value (e.g., 'g5-gpu,g6e-gpu'), it completely replaces auto-detection. The standard default is 'nvidia.com/gpu'. Ask the user to check their cluster's GPU node taints (oc describe node <gpu-node> | grep Taints) if GPU pods fail to schedule with an 'untolerated taint' error."
 
     - name: "peoplemesh.organization.name"
       displayName: "Organization Name"

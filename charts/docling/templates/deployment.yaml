@@ -17,7 +17,7 @@ spec:
       labels:
         app.kubernetes.io/name: {{ .Values.applicationName }}
     spec:
-      {{- with .Values.docling.tolerations }}
+      {{- with .Values.global.gpuTolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

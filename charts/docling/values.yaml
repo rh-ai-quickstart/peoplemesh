@@ -33,11 +33,15 @@ docling:
   # Replica configuration
   replicas: 1
 
-  # Tolerations for GPU nodes - pre-configured for common GPU taints
-  tolerations:
-    - key: g5-gpu
+# GPU node tolerations are shared across all GPU-requiring components via the
+# umbrella chart's global.gpuTolerations value. The installer auto-detects the
+# cluster's GPU node taint keys (or accepts an override) and sets this at deploy
+# time. The default below only applies to standalone installs of this subchart.
+global:
+  gpuTolerations:
+    - key: nvidia.com/gpu
       operator: Exists
       effect: NoSchedule
-    - key: nvidia.com/gpu
+    - key: g5-gpu
       operator: Exists
       effect: NoSchedule

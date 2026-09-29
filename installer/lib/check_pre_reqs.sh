@@ -80,6 +80,17 @@ check_prerequisites() {
 
     if [[ "$GPU_COUNT" == "0" || "$GPU_COUNT" == "null" ]]; then
       missing+=("GPU acceleration requested but no NVIDIA GPUs found in cluster. Either disable GPU settings or install NVIDIA GPU Operator and add GPU nodes.")
+    else
+      # Surface the GPU node NoSchedule taint keys so operators can see what the
+      # installer will auto-tolerate (and what to pass to gpu.tolerationKeys to
+      # override) if GPU pods fail to schedule.
+      TAINT_KEYS=$(oc get nodes -o json 2>/dev/null | \
+        jq -r '[.items[] | select(.status.allocatable["nvidia.com/gpu"] // "0" | tonumber > 0) | .spec.taints // [] | .[] | select(.effect == "NoSchedule") | .key] | unique | join(", ")' 2>/dev/null || echo "")
+      if [[ -n "$TAINT_KEYS" ]]; then
+        log_status "running" "validating" "GPU nodes found ($GPU_COUNT); NoSchedule taint keys: ${TAINT_KEYS}"
+      else
+        log_status "running" "validating" "GPU nodes found ($GPU_COUNT); no NoSchedule taints (default nvidia.com/gpu toleration applies)"
+      fi
     fi
   fi
 
