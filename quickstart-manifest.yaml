@@ -52,38 +52,6 @@ metadata:
   # Last updated timestamp
   lastUpdated: "2026-06-29T00:00:00Z"
 
-# Version management and upgrade support
-versioning:
-  # Supported upgrade paths from older versions
-  # Navigator uses this to determine if in-place upgrade is possible
-  # All upgrade paths must have "to" matching metadata.version
-  upgradePaths:
-    - from: "0.9.0"
-      to: "1.0.0"  # Must match metadata.version
-
-      # User-facing information (Navigator shows this before upgrade)
-      notes: |
-        Major upgrade:
-        - Database schema migration required (adds vector search columns)
-        - Keycloak operator minimum version raised to 24.0
-        - New required parameter: peoplemesh.security.oauthStateSecret
-      estimatedTime: "20m"
-
-      # Upgrade characteristics (Navigator uses these to warn user)
-      reversible: false               # Can this upgrade be rolled back?
-      requiresDataBackup: true        # User should backup data before upgrade
-      requiresDataMigration: true     # Database/data will be modified during upgrade
-      requiresManualSteps: false      # No manual intervention needed beyond approval
-
-      # Note: Migration scripts are internal to installer image
-      # Installer determines which migration to run based on SOURCE_VERSION and TARGET_VERSION
-      # No need to expose script paths in manifest
-
-  # Installer image tag must match quickstart version
-  # Ensures installer has correct upgrade logic for this version
-  # Must match both metadata.version and deployment.installer.image tag
-  installerImageTag: "1.0.0"
-
 # Classification and discovery
 classification:
   # Industry verticals this quickstart serves
@@ -226,7 +194,7 @@ deployment:
 
   # Installer container image configuration
   installer:
-    image: "quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.2"
+    image: "quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.2@sha256:2630cb8d2be4ff440fb0bdba1989591406d2bffb9169d15458c28c00f6036734"
     command: ["/installer/entrypoint.sh"]
 
     # Environment variables the installer expects
