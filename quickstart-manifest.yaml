@@ -194,7 +194,7 @@ deployment:
 
   # Installer container image configuration
   installer:
-    image: "quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.2@sha256:2630cb8d2be4ff440fb0bdba1989591406d2bffb9169d15458c28c00f6036734"
+    image: "quay.io/rh-ai-quickstart/peoplemesh-installer:1.0.2@sha256:4e4838a9dd893685305b7c4ce4a521bca84824cf503671934bcd960cc9d99af0"
     command: ["/installer/entrypoint.sh"]
 
     # Environment variables the installer expects
