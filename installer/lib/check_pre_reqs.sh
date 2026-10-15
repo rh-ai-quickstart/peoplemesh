@@ -60,13 +60,15 @@ check_prerequisites() {
     fi
   fi
 
-  # Check for storage class with ReadWriteOnce
-  log_status "running" "validating" "Checking for ReadWriteOnce storage class..."
-  if ! oc get sc 2>/dev/null | awk 'NR>1 {print $0}' | grep -q 'ReadWriteOnce\|RWO'; then
-    # Fallback: check if any storage class exists (many don't show mode in name)
-    if ! oc get sc --no-headers 2>/dev/null | grep -q .; then
-      missing+=("No storage classes found. At least one ReadWriteOnce storage class is required.")
-    fi
+  # Check that at least one storage class exists (all common provisioners
+  # support ReadWriteOnce). Capture the output instead of piping into
+  # `grep -q`: under pipefail, grep exiting early can SIGPIPE oc and make the
+  # pipeline fail intermittently, falsely reporting no storage classes.
+  log_status "running" "validating" "Checking for storage classes..."
+  if ! SC_LIST=$(oc get storageclass -o name 2>&1); then
+    missing+=("Unable to list storage classes: ${SC_LIST}")
+  elif [[ -z "$SC_LIST" ]]; then
+    missing+=("No storage classes found. At least one ReadWriteOnce storage class is required.")
   fi
 
   # Check GPU availability if GPU is requested

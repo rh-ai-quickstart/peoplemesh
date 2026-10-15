@@ -66,7 +66,9 @@ cleanup_quickstart() {
 
   # Uninstall Helm release (this removes all pods, services, etc.)
   log_status "running" "uninstalling" "Removing Helm release..."
-  if helm list -n "$TARGET_NAMESPACE" 2>/dev/null | grep -q 'peoplemesh'; then
+  # Capture output rather than piping into `grep -q`, which can SIGPIPE helm
+  # under pipefail and falsely report the release as absent.
+  if [[ "$(helm list -n "$TARGET_NAMESPACE" -q 2>/dev/null)" == *peoplemesh* ]]; then
     # Use --wait to ensure all resources are deleted before continuing
     helm uninstall peoplemesh -n "$TARGET_NAMESPACE" --wait --timeout 5m || {
       log_status "running" "uninstalling" "Helm uninstall encountered errors, continuing cleanup..."
